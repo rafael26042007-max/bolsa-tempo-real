@@ -275,11 +275,32 @@ async function loadUS(symbol) {
 // se der 429, o app espera 2 min sem chamar a brapi e mantém o último preço na tela.
 let brapiPausedUntil = 0;
 
+// [NOVO] Guarda a última cotação de cada ação da B3 no navegador. Se a brapi
+// recusar (429) logo ao abrir o app, o card mostra o último preço salvo em vez de "ERRO".
+const STORAGE_B3 = "pregao.b3cache";
+const b3Cache = load(STORAGE_B3, {});
+function saveB3Cache(symbol, r) {
+  b3Cache[symbol] = {
+    price: r.price, prevClose: r.prevClose, open: r.open, high: r.high, low: r.low,
+    volume: r.volume, lastTs: r.lastTs, profile: r.profile,
+  };
+  save(STORAGE_B3, b3Cache);
+}
+function restoreB3Cache(symbol) {
+  const c = b3Cache[symbol], r = rec(symbol);
+  if (!c || r.price != null) return;
+  Object.assign(r, c, { status: "delay", note: "Último preço salvo" });
+  pushTick(r, r.lastTs, r.price);
+  markDirty(symbol);
+}
+
 async function loadB3(symbol, withHistory = false) {
   const r = rec(symbol);
   const ticker = displaySymbol(symbol);
   if (Date.now() < brapiPausedUntil) return;             // em pausa por limite
   const wantHistory = withHistory && !r.histTried;       // histórico só uma vez
+  // [NOVO] Dado da B3 já vem ~30 min atrasado: não pede de novo se buscou há menos de 1 min
+  if (!wantHistory && r.fetchedAt && Date.now() - r.fetchedAt < 60_000) return;
   try {
     let json;
     try {
@@ -316,10 +337,18 @@ async function loadB3(symbol, withHistory = false) {
         .sort((a, b) => a.t - b.t);
     }
     pushTick(r, r.lastTs, r.price);
+    r.fetchedAt = Date.now();
+    saveB3Cache(symbol, r);                               // [NOVO]
   } catch (e) {
     if (e.message === "RATE_LIMIT") {
       brapiPausedUntil = Date.now() + 120_000;           // pausa de 2 min
+      restoreB3Cache(symbol);                            // [NOVO] tenta o último preço salvo
       if (r.price != null) { markDirty(symbol); return; } // mantém o último preço
+      // [ALTERADO] sem preço nenhum: fica "aguardando" (não é erro, é só espera)
+      r.status = "wait";
+      r.note = "Limite da brapi — tenta de novo em 2 min";
+      markDirty(symbol);
+      return;
     }
     r.status = "err";
     r.note = e.message === "BRAPI_TOKEN" ? "Precisa do token da brapi"
@@ -603,7 +632,7 @@ function badgeFor(symbol, r) {
   if (r.status === "live" && isLive()) return { text: "AO VIVO", cls: "live" };
   if (r.status === "poll" || (r.status === "live" && providerOf(symbol) === "us"))
     return { text: "A CADA 15 S", cls: "delay" }; // [NOVO] plano B quando o ao vivo cai
-  if (providerOf(symbol) === "b3") return { text: "B3", cls: "" };
+  if (providerOf(symbol) === "b3") return { text: r.note ? "AGUARDANDO" : "B3", cls: "" };
   // [NOVO] Fora do pregão americano mostra "FECHADO" em vez de "AGUARDANDO"
   if (providerOf(symbol) === "us" && state.usMarketOpen === false) return { text: "FECHADO", cls: "" };
   return { text: "AGUARDANDO", cls: "" };
@@ -644,7 +673,7 @@ function updateCard(symbol) {
   }
 
   // Rodapé
-  if (r.status === "err") {
+  if (r.status === "err" || (r.status === "wait" && r.note && r.price == null)) { // [ALTERADO] mostra o motivo da espera
     c.footL.textContent = r.note;
     c.footR.textContent = "";
   } else {
@@ -836,7 +865,10 @@ function drawDetailChart() {
     empty.hidden = false;
     empty.textContent = providerOf(symbol) === "b3"
       ? "Histórico do dia indisponível no plano atual da brapi."
-      : "Aguardando negociações ao vivo… o gráfico vai se formando a cada negócio.";
+      : (providerOf(symbol) === "us" && state.usMarketOpen === false)
+        // [NOVO] mensagem específica com o mercado americano fechado
+        ? "Mercado dos EUA fechado. O gráfico começa a se formar quando o pregão abrir."
+        : "Aguardando negociações ao vivo… o gráfico vai se formando a cada negócio.";
     chartState.geom = null;
     return;
   }
@@ -1022,6 +1054,7 @@ function fetchInitial(symbol) {
    9. BUSCA (Finnhub + brapi + criptos)
    ========================================================= */
 let searchSeq = 0;
+const brapiSearchCache = new Map(); // [NOVO] busca → resultados da brapi (5 min)
 let activeIdx = -1;
 let currentResults = [];
 
@@ -1048,12 +1081,24 @@ async function runSearch(q) {
     );
   }
   // b) brapi: ações, FIIs e BDRs da B3
-  tasks.push(
-    brapi("/quote/list", { search: q, limit: 8 }).then((j) =>
-      // [ALTERADO] a lista da brapi já traz preço e variação — aproveita sem gastar requisição
-      (j.stocks || []).map((s) => ({ symbol: `${s.stock}.SA`, name: s.name, tag: "B3", price: s.close, pct: s.change }))
-    ).catch(() => [])
-  );
+  // [ALTERADO] só a partir de 2 letras, com cache de 5 min por busca e respeitando a pausa de limite
+  const bkey = ql;
+  const bcached = brapiSearchCache.get(bkey);
+  if (bcached && Date.now() - bcached.at < 300_000) {
+    tasks.push(Promise.resolve(bcached.items.map((x) => ({ ...x }))));
+  } else if (q.length >= 2 && Date.now() >= brapiPausedUntil) {
+    tasks.push(
+      brapi("/quote/list", { search: q, limit: 8 }).then((j) => {
+        // a lista da brapi já traz preço e variação — aproveita sem gastar requisição
+        const items = (j.stocks || []).map((s) => ({ symbol: `${s.stock}.SA`, name: s.name, tag: "B3", price: s.close, pct: s.change }));
+        brapiSearchCache.set(bkey, { items, at: Date.now() });
+        return items.map((x) => ({ ...x }));
+      }).catch((e) => {
+        if (e.message === "RATE_LIMIT") brapiPausedUntil = Date.now() + 120_000;
+        return [];
+      })
+    );
+  }
   // c) Criptos (lista local)
   tasks.push(Promise.resolve(
     CRYPTOS.filter((c) => c.name.toLowerCase().includes(ql) || c.symbol.toLowerCase().includes(ql))
@@ -1322,8 +1367,11 @@ function startTimers() {
 
 async function loadAll() {
   for (const item of state.list) {
+    const p = providerOf(item.symbol);
+    if (p === "b3") restoreB3Cache(item.symbol);   // [NOVO] mostra o último preço na hora
     fetchInitial(item.symbol);
-    if (providerOf(item.symbol) === "us") await sleep(250); // não estoura o limite
+    if (p === "us") await sleep(250);              // não estoura o limite
+    if (p === "b3") await sleep(1500);             // [NOVO] brapi: uma de cada vez, com folga
   }
 }
 
@@ -1387,8 +1435,12 @@ function bindGlobal() {
   });
 
   // Ao voltar para a aba, recarrega tudo (o navegador pausa timers em segundo plano)
+  // [ALTERADO] só recarrega se a aba ficou escondida por mais de 2 min
+  // (antes recarregava a cada troca de aba e estourava o limite da brapi)
+  let hiddenAt = 0;
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) { loadAll(); loadMarketStatus(); }
+    if (document.hidden) { hiddenAt = Date.now(); return; }
+    if (Date.now() - hiddenAt > 120_000) { loadAll(); loadMarketStatus(); }
   });
 }
 
