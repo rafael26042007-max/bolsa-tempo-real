@@ -9,8 +9,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
   <!-- [NOVO] app instalável (PWA) -->
-  <!-- [CORRIGIDO] era manifest.webmanifest: o servidor do IntelliJ não reconhece essa extensão e dava 404 -->
-  <link rel="manifest" href="manifest.json" />
+  <!-- [CORRIGIDO] crossorigin="use-credentials": por padrão o navegador busca o manifest SEM
+       credenciais, e o servidor do IntelliJ (localhost:63342) recusa pedidos "não assinados"
+       com 404. Com este atributo o pedido vai assinado. No GitHub Pages não muda nada. -->
+  <link rel="manifest" href="manifest.json" crossorigin="use-credentials" />
   <link rel="icon" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/icon-192.png" />
   <meta name="theme-color" content="#0b0d11" />
