@@ -370,25 +370,73 @@ async function loadCryptoStats(symbol) {
 
 /* =========================================================
    5. TEMPO REAL — WebSocket da Finnhub
+   ---------------------------------------------------------
+   [CORRIGIDO] O plano grátis da Finnhub aceita só 1 conexão ao vivo
+   por chave. Com o Pregão aberto em 2 abas (ou no PC e no celular),
+   a segunda conexão era recusada e ficava em "Reconectando…".
+   Agora:
+   • Só UMA aba abre o WebSocket (a "líder", eleita com Web Locks)
+     e repassa os negócios para as outras abas (BroadcastChannel).
+   • Se mesmo assim não conectar, o app avisa o motivo e passa a
+     atualizar pelo REST a cada ~15 s, para os preços não pararem.
    ========================================================= */
+const channel = "BroadcastChannel" in window ? new BroadcastChannel("pregao-live") : null;
+const live = {
+  leader: false,        // esta aba é a dona da conexão?
+  remoteOn: false,      // (abas seguidoras) a líder está ao vivo?
+  failures: 0,          // tentativas seguidas que falharam
+  warned: false,        // já mostrou o aviso de falha?
+  remoteSubs: new Set() // ativos pedidos pelas outras abas
+};
+
 function wsSymbols() {
-  return state.list.map((i) => i.symbol).filter((s) => providerOf(s) !== "b3");
+  const own = state.list.map((i) => i.symbol).filter((s) => providerOf(s) !== "b3");
+  return [...new Set([...own, ...live.remoteSubs])];
+}
+
+// Está recebendo tempo real (por esta aba ou pela líder)?
+function isLive() {
+  if (live.leader) return !!state.ws && state.ws.readyState === WebSocket.OPEN;
+  return live.remoteOn;
+}
+
+// Ponto de entrada: disputa a liderança; quem ganha conecta
+function startLive() {
+  if (!state.config.finnhubKey) { setWsStatus("off", "Sem chave"); return; }
+  if (live.started) { connectWS(); return; } // já está na disputa: só pede reconexão
+  live.started = true;
+  if (!navigator.locks || !channel) { live.leader = true; connectWS(); return; }
+
+  setWsStatus("wait", "Conectando…");
+  // Fica na fila do "cadeado". Quando a aba líder fecha, a próxima assume sozinha.
+  navigator.locks.request("pregao-ws", () => new Promise(() => {
+    live.leader = true;
+    connectWS();
+  }));
+  // Enquanto não é líder, pede à líder os ativos desta aba
+  channel.postMessage({ type: "sub", symbols: wsSymbols() });
 }
 
 function connectWS() {
+  if (!live.leader) { channel && channel.postMessage({ type: "reconnect" }); return; }
+  state.config = load(STORAGE_CONFIG, state.config); // pega a chave mais nova (pode ter mudado em outra aba)
   if (!state.config.finnhubKey) { setWsStatus("off", "Sem chave"); return; }
   if (state.ws) { state.ws.onclose = null; state.ws.close(); }
 
-  setWsStatus("wait", "Conectando…");
+  // Depois de 3 falhas mantém o aviso "Sem tempo real" enquanto tenta de novo
+  if (live.failures < 3) setWsStatus("wait", "Conectando…");
   const ws = new WebSocket(`${FINNHUB_WS}?token=${encodeURIComponent(state.config.finnhubKey)}`);
   state.ws = ws;
+  let opened = false;
 
   ws.onopen = () => {
+    opened = true;
     state.wsRetry = 0;
+    live.failures = 0;
     setWsStatus("on", "Ao vivo");
     const syms = wsSymbols();
     if (syms.length > WS_SYMBOL_LIMIT) toast(`O plano grátis transmite até ${WS_SYMBOL_LIMIT} ativos ao vivo.`);
-    syms.slice(0, WS_SYMBOL_LIMIT).forEach(subscribe);
+    syms.slice(0, WS_SYMBOL_LIMIT).forEach(sendSub);
   };
 
   ws.onmessage = (ev) => {
@@ -396,27 +444,78 @@ function connectWS() {
     try { msg = JSON.parse(ev.data); } catch { return; }
     if (msg.type === "trade" && Array.isArray(msg.data)) {
       for (const tr of msg.data) onTrade(tr.s, tr.p, tr.t, tr.v);
+      channel && channel.postMessage({ type: "trades", data: msg.data }); // repassa às outras abas
     } else if (msg.type === "error") {
       toast(`Finnhub: ${msg.msg}`);
     }
   };
 
   ws.onclose = () => {
-    setWsStatus("off", "Reconectando…");
-    // Reconexão com espera crescente: 1s, 2s, 4s… até 30s
-    const wait = Math.min(30_000, 1000 * 2 ** state.wsRetry++);
+    if (!opened) live.failures++;
+    if (live.failures >= 3 && !live.warned) {
+      live.warned = true;
+      toast("Não consegui conectar ao vivo na Finnhub. O mais comum: o Pregão aberto em outro lugar com a mesma chave " +
+            "(o plano grátis permite 1 conexão). Enquanto isso, atualizo a cada ~15 s.", 9000);
+    }
+    setWsStatus("off", live.failures >= 3 ? "Sem tempo real · 15 s" : "Reconectando…");
+    // Espera crescente: 3s, 6s, 12s… até 60s (tentar rápido demais faz a Finnhub bloquear)
+    const wait = Math.min(60_000, 3000 * 2 ** state.wsRetry++);
     setTimeout(connectWS, wait);
   };
   ws.onerror = () => ws.close();
 }
 
-function subscribe(symbol) {
+function sendSub(symbol) {
   if (state.ws && state.ws.readyState === WebSocket.OPEN)
     state.ws.send(JSON.stringify({ type: "subscribe", symbol }));
 }
+
+function subscribe(symbol) {
+  if (live.leader) sendSub(symbol);
+  else channel && channel.postMessage({ type: "sub", symbols: [symbol] });
+}
 function unsubscribe(symbol) {
-  if (state.ws && state.ws.readyState === WebSocket.OPEN)
+  // Só a líder fala com a Finnhub, e só cancela se nenhuma outra aba pediu o ativo
+  if (live.leader && !live.remoteSubs.has(symbol) && state.ws && state.ws.readyState === WebSocket.OPEN)
     state.ws.send(JSON.stringify({ type: "unsubscribe", symbol }));
+}
+
+// Mensagens entre as abas
+function bindChannel() {
+  if (!channel) return;
+  channel.onmessage = ({ data: m }) => {
+    if (m.type === "trades" && !live.leader) {
+      for (const tr of m.data) onTrade(tr.s, tr.p, tr.t, tr.v);
+    } else if (m.type === "status" && !live.leader) {
+      live.remoteOn = m.kind === "on";
+      setWsStatus(m.kind, m.kind === "on" ? "Ao vivo" : m.text);
+    } else if (m.type === "sub" && live.leader) {
+      m.symbols.forEach((s) => { live.remoteSubs.add(s); sendSub(s); });
+      channel.postMessage({ type: "status", kind: isLive() ? "on" : "off", text: $("#ws-status .pill-text").textContent });
+    } else if (m.type === "reconnect" && live.leader) {
+      live.failures = 0; live.warned = false; state.wsRetry = 0;
+      connectWS();
+    }
+  };
+}
+
+/* ---------- 5.1 [NOVO] Plano B: atualização pelo REST quando o ao vivo cai ---------- */
+async function pollFallback() {
+  if (isLive() || !state.config.finnhubKey || document.hidden) return;
+  const syms = state.list.map((i) => i.symbol).filter((s) => providerOf(s) === "us");
+  for (const symbol of syms) {
+    if (isLive()) return;
+    try {
+      const q = await finnhub("/quote", { symbol });
+      if (q && q.c && state.data[symbol]) {
+        const r = state.data[symbol];
+        if (q.c !== r.price) onTrade(symbol, q.c, q.t ? q.t * 1000 : Date.now());
+        r.status = "poll";
+        markDirty(symbol);
+      }
+    } catch { /* tenta no próximo ciclo */ }
+    await sleep(1200); // respeita o limite de 60 req/min
+  }
 }
 
 // Cada negócio fechado na bolsa chega aqui
@@ -436,6 +535,7 @@ function onTrade(symbol, price, ts, volume) {
 }
 
 function setWsStatus(kind, text) {
+  if (live.leader && channel) channel.postMessage({ type: "status", kind, text });
   const el = $("#ws-status");
   el.className = `pill pill-${kind}`;
   el.querySelector(".pill-text").textContent = text;
@@ -500,7 +600,9 @@ function createCard(item) {
 function badgeFor(symbol, r) {
   if (r.status === "err") return { text: "ERRO", cls: "err" };
   if (r.status === "delay") return { text: "B3 · ~30 MIN", cls: "delay" };
-  if (r.status === "live") return { text: "AO VIVO", cls: "live" };
+  if (r.status === "live" && isLive()) return { text: "AO VIVO", cls: "live" };
+  if (r.status === "poll" || (r.status === "live" && providerOf(symbol) === "us"))
+    return { text: "A CADA 15 S", cls: "delay" }; // [NOVO] plano B quando o ao vivo cai
   if (providerOf(symbol) === "b3") return { text: "B3", cls: "" };
   // [NOVO] Fora do pregão americano mostra "FECHADO" em vez de "AGUARDANDO"
   if (providerOf(symbol) === "us" && state.usMarketOpen === false) return { text: "FECHADO", cls: "" };
@@ -1079,6 +1181,9 @@ function startTimers() {
   // Status do mercado a cada 5 min
   state.timers.push(setInterval(loadMarketStatus, 300_000));
 
+  // [NOVO] Plano B: se o ao vivo cair, atualiza ações dos EUA pelo REST a cada 15 s
+  state.timers.push(setInterval(pollFallback, 15_000));
+
   // [NOVO] Câmbio a cada 1 hora
   state.timers.push(setInterval(loadFx, FX_REFRESH_MS));
 }
@@ -1112,7 +1217,8 @@ function bindSettings() {
     save(STORAGE_CONFIG, state.config);
     closeSettings();
     toast("Chaves salvas. Conectando…");
-    connectWS();
+    live.failures = 0; live.warned = false; state.wsRetry = 0;
+    startLive();
     loadMarketStatus();
     state.list.forEach((i) => { const r = rec(i.symbol); if (r.status === "err") r.status = "wait"; });
     loadAll();
@@ -1160,6 +1266,7 @@ function init() {
   bindSettings();
   bindGlobal();
   bindChartHover();
+  bindChannel();  // [NOVO] conversa entre abas abertas
   bindCurrency(); // [NOVO] monta o seletor de moeda
   loadFx();       // [NOVO] busca o câmbio
   renderList();
@@ -1168,7 +1275,7 @@ function init() {
     setWsStatus("off", "Sem chave");
     openSettings();
   } else {
-    connectWS();
+    startLive(); // [ALTERADO] antes era connectWS()
     loadMarketStatus();
   }
   loadAll();
