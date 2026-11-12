@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pregão — Bolsa em tempo real</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ===================== CABEÇALHO ===================== -->
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-dot"></span>
+      <span class="brand-name">Pregão</span>
+    </div>
+
+    <div class="status-group">
+      <span id="market-status" class="pill" title="Status da bolsa americana (NYSE/Nasdaq)">Mercado: —</span>
+      <span id="ws-status" class="pill pill-off" title="Conexão em tempo real (WebSocket)">
+        <span class="pill-dot"></span><span class="pill-text">Desconectado</span>
+      </span>
+      <button id="btn-settings" class="icon-btn" title="Configurações / chaves de API" aria-label="Configurações">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="container">
+
+    <!-- ===================== BUSCA ===================== -->
+    <section class="search-section">
+      <h1 class="title">Acompanhe qualquer ação, ao vivo.</h1>
+      <p class="subtitle">Pesquise por nome ou código — Apple, NVDA, Petrobras, VALE3, Bitcoin…</p>
+
+      <div class="search-box">
+        <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="search-input" type="text" placeholder="Buscar empresa ou código…" autocomplete="off" spellcheck="false" />
+        <kbd>/</kbd>
+        <ul id="search-results" class="search-results" hidden></ul>
+      </div>
+
+      <div class="chips" id="quick-chips">
+        <!-- Atalhos rápidos (preenchidos pelo app.js) -->
+      </div>
+    </section>
+
+    <!-- ===================== LISTA DE ACOMPANHAMENTO ===================== -->
+    <section>
+      <div class="section-head">
+        <h2>Minha lista</h2>
+        <span id="last-update" class="muted small">—</span>
+      </div>
+      <div id="watchlist" class="grid"></div>
+      <div id="empty-state" class="empty" hidden>
+        <p>Sua lista está vazia.</p>
+        <p class="muted small">Busque uma empresa acima ou clique num atalho.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer muted small">
+    Dados: <a href="https://finnhub.io" target="_blank" rel="noopener">Finnhub</a> (EUA e cripto, tempo real) ·
+    <a href="https://brapi.dev" target="_blank" rel="noopener">brapi</a> (B3, com atraso).
+    Não é recomendação de investimento.
+  </footer>
+
+  <!-- ===================== PAINEL DE DETALHES ===================== -->
+  <div id="detail-overlay" class="overlay" hidden>
+    <aside class="drawer" role="dialog" aria-labelledby="d-symbol">
+      <button class="icon-btn drawer-close" id="detail-close" aria-label="Fechar">✕</button>
+
+      <div class="d-head">
+        <div id="d-logo" class="logo lg"></div>
+        <div>
+          <div id="d-symbol" class="d-symbol">—</div>
+          <div id="d-name" class="muted">—</div>
+        </div>
+      </div>
+
+      <div class="d-price-row">
+        <span id="d-price" class="d-price mono">—</span>
+        <span id="d-change" class="change">—</span>
+      </div>
+      <div id="d-source" class="muted small"></div>
+
+      <div class="chart-wrap">
+        <canvas id="d-chart"></canvas>
+        <div id="d-tooltip" class="tooltip" hidden></div>
+        <div id="d-chart-empty" class="chart-empty muted small" hidden>Aguardando negociações ao vivo…</div>
+      </div>
+
+      <dl class="stats" id="d-stats"></dl>
+      <div id="d-profile" class="profile small"></div>
+
+      <button id="d-remove" class="btn btn-ghost danger">Remover da lista</button>
+    </aside>
+  </div>
+
+  <!-- ===================== CONFIGURAÇÕES ===================== -->
+  <div id="settings-overlay" class="overlay center" hidden>
+    <form id="settings-form" class="modal">
+      <h3>Chaves de API</h3>
+      <p class="muted small">
+        As chaves ficam salvas <strong>só no seu navegador</strong> (localStorage).
+      </p>
+
+      <label>
+        <span>Finnhub <em class="req">obrigatória</em></span>
+        <input id="finnhub-key" type="text" placeholder="cole sua chave aqui" autocomplete="off" spellcheck="false" />
+        <small class="muted">Grátis em <a href="https://finnhub.io/register" target="_blank" rel="noopener">finnhub.io/register</a> — dá preço em tempo real de ações dos EUA e cripto.</small>
+      </label>
+
+      <label>
+        <span>brapi <em class="opt">opcional</em></span>
+        <input id="brapi-key" type="text" placeholder="token da brapi (para ações da B3)" autocomplete="off" spellcheck="false" />
+        <small class="muted">Grátis em <a href="https://brapi.dev/dashboard" target="_blank" rel="noopener">brapi.dev</a>. Sem token, só funcionam PETR4, VALE3, MGLU3 e ITUB4.</small>
+      </label>
+
+      <div class="modal-actions">
+        <button type="button" id="settings-cancel" class="btn btn-ghost">Cancelar</button>
+        <button type="submit" class="btn btn-primary">Salvar e conectar</button>
+      </div>
+    </form>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
