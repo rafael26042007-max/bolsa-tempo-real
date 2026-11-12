@@ -96,6 +96,13 @@
       </div>
       <div id="d-source" class="muted small"></div>
 
+      <!-- [NOVO] período do gráfico -->
+      <div id="range-tabs" class="range-tabs">
+        <button type="button" data-r="1D">1D</button>
+        <button type="button" data-r="1M">1M</button>
+        <button type="button" data-r="3M">3M</button>
+      </div>
+
       <div class="chart-wrap">
         <canvas id="d-chart"></canvas>
         <div id="d-tooltip" class="tooltip" hidden></div>
@@ -128,6 +135,13 @@
         <span>brapi <em class="opt">opcional</em></span>
         <input id="brapi-key" type="text" placeholder="token da brapi (para ações da B3)" autocomplete="off" spellcheck="false" />
         <small class="muted">Grátis em <a href="https://brapi.dev/dashboard" target="_blank" rel="noopener">brapi.dev</a>. Sem token, só funcionam PETR4, VALE3, MGLU3 e ITUB4.</small>
+      </label>
+
+      <!-- [NOVO] Twelve Data: gráfico histórico de ações dos EUA e cripto -->
+      <label>
+        <span>Twelve Data <em class="opt">opcional</em></span>
+        <input id="twelve-key" type="text" placeholder="chave da Twelve Data (gráficos)" autocomplete="off" spellcheck="false" />
+        <small class="muted">Grátis em <a href="https://twelvedata.com/register" target="_blank" rel="noopener">twelvedata.com</a>. Mostra o gráfico do último pregão e de 1/3 meses das ações dos EUA e cripto, mesmo com o mercado fechado.</small>
       </label>
 
       <div class="modal-actions">

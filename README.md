@@ -11,6 +11,7 @@ Painel simples para acompanhar ações (EUA e B3) e criptomoedas com preço **ao
 2. Abra o `index.html` no navegador (dois cliques já funciona).
 3. Cole a chave na janela de configurações (ícone ⚙) e clique em **Salvar e conectar**.
 4. (Opcional) Para buscar qualquer ação da B3, crie um token grátis em <https://brapi.dev/dashboard> e cole no segundo campo.
+5. (Opcional) Para os **gráficos históricos** (último pregão, 1 e 3 meses) de ações dos EUA e cripto, crie uma chave grátis em <https://twelvedata.com/register> e cole no terceiro campo.
 
 > As chaves ficam salvas **só no seu navegador** (localStorage). Não coloque chaves no código antes de subir pro GitHub.
 
@@ -32,7 +33,7 @@ Limites do plano grátis da Finnhub: 60 requisições/minuto e até 50 ativos ao
 
 - Busca de empresas pelo nome ou código (EUA, B3 e criptos): cada resultado já mostra **preço e variação do dia** e tem um botão **+ Adicionar** (dá pra adicionar várias seguidas). **Clicar no resultado abre o painel de detalhes em modo prévia** (preço ao vivo, gráfico, dados da empresa) para ver antes de adicionar. Setas + `Enter` também abrem a prévia. Atalho: tecla `/`.
 - Cards com preço piscando verde/vermelho a cada negócio, variação do dia e mini-gráfico.
-- Painel de detalhes: gráfico com mira e tooltip, abertura, máxima, mínima, fechamento anterior, valor de mercado, setor e site.
+- Painel de detalhes: gráfico com períodos **1D / 1M / 3M**, mira e tooltip, abertura, máxima, mínima, fechamento anterior, valor de mercado, setor e site.
 - Selo de status em cada ativo: **AO VIVO**, **B3 · ~30 MIN**, **AGUARDANDO** ou **ERRO**.
 - **Seletor de moeda** no topo: converte todos os preços (BRL, USD, EUR, GBP, JPY…) pelo câmbio de referência do dia (open.er-api / Frankfurter, sem chave). A variação em % não muda.
 - Status do mercado americano (aberto, pré-mercado, after-market, fechado).

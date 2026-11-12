@@ -18,6 +18,11 @@ const FINNHUB_REST = "https://finnhub.io/api/v1";
 const FINNHUB_WS = "wss://ws.finnhub.io";
 const BRAPI = "https://brapi.dev/api";
 const BINANCE = "https://api.binance.com/api/v3";
+const TWELVE = "https://api.twelvedata.com"; // [NOVO] histórico de ações dos EUA e cripto (chave grátis)
+
+// [NOVO] Ações de teste da brapi: SEM token elas têm acesso completo (inclusive gráfico do dia).
+// Com token, o plano grátis recusa o gráfico de 5 min — por isso dava 429 no VALE3.
+const BRAPI_TEST = ["PETR4", "VALE3", "MGLU3", "ITUB4"];
 // [NOVO] Câmbio: open.er-api (160+ moedas) e reserva Frankfurter (Banco Central Europeu) — grátis e sem chave
 const FX_APIS = [
   { url: "https://open.er-api.com/v6/latest/USD", pick: (j) => j.rates, date: (j) => j.time_last_update_utc && new Date(j.time_last_update_utc).toISOString().slice(0, 10) },
@@ -75,7 +80,8 @@ const CRYPTOS = [
    2. ESTADO DO APP
    ========================================================= */
 const state = {
-  config: load(STORAGE_CONFIG, { finnhubKey: "", brapiKey: "" }),
+  config: { finnhubKey: "", brapiKey: "", twelveKey: "", ...load(STORAGE_CONFIG, {}) }, // [ALTERADO] + twelveKey
+  chartRange: "1D", // [NOVO] período do gráfico do painel: 1D, 1M ou 3M
   list: load(STORAGE_LIST, null) || DEFAULT_LIST.map((s) => ({ symbol: s, name: "" })),
   data: {},          // symbol → { price, prevClose, high, low, open, ticks[], status, ... }
   cards: {},         // symbol → referências do DOM do card
@@ -219,9 +225,10 @@ async function finnhub(path, params = {}) {
   return res.json();
 }
 
-async function brapi(path, params = {}) {
+// [ALTERADO] opts.noToken: não manda o token (usado nas ações de teste)
+async function brapi(path, params = {}, opts = {}) {
   const qs = new URLSearchParams(params);
-  if (state.config.brapiKey) qs.set("token", state.config.brapiKey);
+  if (state.config.brapiKey && !opts.noToken) qs.set("token", state.config.brapiKey);
   const res = await fetch(`${BRAPI}${path}?${qs}`);
   if (res.status === 401 || res.status === 403) throw new Error("BRAPI_TOKEN");
   if (res.status === 429) throw new Error("RATE_LIMIT");
@@ -298,19 +305,11 @@ async function loadB3(symbol, withHistory = false) {
   const r = rec(symbol);
   const ticker = displaySymbol(symbol);
   if (Date.now() < brapiPausedUntil) return;             // em pausa por limite
-  const wantHistory = withHistory && !r.histTried;       // histórico só uma vez
   // [NOVO] Dado da B3 já vem ~30 min atrasado: não pede de novo se buscou há menos de 1 min
-  if (!wantHistory && r.fetchedAt && Date.now() - r.fetchedAt < 60_000) return;
+  if (r.fetchedAt && Date.now() - r.fetchedAt < 60_000) return;
   try {
-    let json;
-    try {
-      json = await brapi(`/quote/${ticker}`, wantHistory ? { range: "1d", interval: "5m" } : {});
-    } catch (e) {
-      if (!wantHistory || e.message === "BRAPI_TOKEN" || e.message === "RATE_LIMIT") throw e;
-      json = await brapi(`/quote/${ticker}`);           // histórico indisponível → só cotação
-    } finally {
-      if (wantHistory) r.histTried = true;
-    }
+    // [ALTERADO] só a cotação; o gráfico agora é carregado à parte (bloco 4.4)
+    const json = await brapi(`/quote/${ticker}`, {}, { noToken: BRAPI_TEST.includes(ticker) });
     const q = json.results && json.results[0];
     if (!q || q.regularMarketPrice == null) throw new Error("NOT_FOUND");
 
@@ -329,13 +328,6 @@ async function loadB3(symbol, withHistory = false) {
     };
     setName(symbol, q.longName || q.shortName);
 
-    // Histórico intradiário (se veio)
-    if (Array.isArray(q.historicalDataPrice) && q.historicalDataPrice.length) {
-      r.ticks = q.historicalDataPrice
-        .filter((h) => h.close != null)
-        .map((h) => ({ t: h.date * 1000, p: h.close }))
-        .sort((a, b) => a.t - b.t);
-    }
     pushTick(r, r.lastTs, r.price);
     r.fetchedAt = Date.now();
     saveB3Cache(symbol, r);                               // [NOVO]
@@ -395,6 +387,127 @@ async function loadCryptoStats(symbol) {
   binancePausedUntil = Date.now() + 15 * 60_000;
   r.note = "Variação desde que você abriu a página";
   markDirty(symbol);
+}
+
+/* ---------- 4.4 [NOVO] Histórico para o gráfico (1D, 1M, 3M) ----------
+   • B3      → brapi. 1M/3M (diário) em qualquer ação. 1D (5 min) só nas ações de
+               teste, porque no plano grátis o intradiário é exclusivo dos pagos.
+   • EUA/cripto → Twelve Data (chave grátis, 8 pedidos/min). Mostra o último pregão
+               mesmo com o mercado fechado. Sem a chave, o 1D usa só o ao vivo.
+   ------------------------------------------------------------------------ */
+const RANGES = {
+  "1D": { label: "Hoje" },
+  "1M": { label: "1 mês", brapi: "1mo", days: 22, cryptoDays: 30 },
+  "3M": { label: "3 meses", brapi: "3mo", days: 66, cryptoDays: 90 },
+};
+const HIST_TTL = 5 * 60_000; // guarda o histórico por 5 min
+
+// Converte "2026-11-12 15:55:00" no fuso da bolsa para milissegundos UTC
+function tzOffsetMs(utcMs, tz) {
+  const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit",
+    day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const p = Object.fromEntries(f.formatToParts(new Date(utcMs)).map((x) => [x.type, x.value]));
+  return Date.UTC(+p.year, p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - utcMs;
+}
+function zonedToUtc(str, tz) {
+  const [d, tm = "12:00:00"] = str.split(" ");
+  const [Y, M, D] = d.split("-").map(Number);
+  const [h, mi, s] = tm.split(":").map(Number);
+  const guess = Date.UTC(Y, M - 1, D, h, mi, s || 0);
+  try { return guess - tzOffsetMs(guess, tz || "UTC"); } catch { return guess; }
+}
+
+// Fila da Twelve Data: no máximo 1 pedido a cada 8 s (limite grátis: 8/min)
+const tdQueue = [];
+let tdBusy = false;
+function twelve(params, priority = false) {
+  return new Promise((resolve, reject) => {
+    const job = { params, resolve, reject };
+    priority ? tdQueue.unshift(job) : tdQueue.push(job);
+    runTdQueue();
+  });
+}
+async function runTdQueue() {
+  if (tdBusy || !tdQueue.length) return;
+  tdBusy = true;
+  const { params, resolve, reject } = tdQueue.shift();
+  try {
+    const qs = new URLSearchParams({ ...params, apikey: state.config.twelveKey });
+    const res = await fetch(`${TWELVE}/time_series?${qs}`);
+    const j = await res.json();
+    if (j.status === "error") throw new Error(j.code === 429 ? "RATE_LIMIT" : j.code === 401 ? "BAD_KEY" : "TD_ERROR");
+    resolve(j);
+  } catch (e) { reject(e); }
+  setTimeout(() => { tdBusy = false; runTdQueue(); }, 8000);
+}
+
+function tdSymbol(symbol) {
+  return providerOf(symbol) === "crypto"
+    ? symbol.split(":")[1].replace(/USDT$/, "") + "/USD"
+    : symbol;
+}
+
+async function loadHistory(symbol, range, priority = false) {
+  const r = rec(symbol);
+  r.hist = r.hist || {};
+  const h = r.hist[range];
+  if (h && (h.loading || Date.now() - h.at < HIST_TTL)) return;
+  const p = providerOf(symbol);
+  r.hist[range] = { pts: h ? h.pts : [], loading: true, at: 0, err: "" };
+  markDirty(symbol);
+
+  let pts = [], err = "";
+  try {
+    if (p === "b3") {
+      const ticker = displaySymbol(symbol);
+      const test = BRAPI_TEST.includes(ticker);
+      if (range === "1D" && !test) throw new Error("B3_INTRADAY");
+      const params = range === "1D" ? { range: "1d", interval: "5m" } : { range: RANGES[range].brapi, interval: "1d" };
+      const j = await brapi(`/quote/${ticker}`, params, { noToken: test });
+      const q = j.results && j.results[0];
+      pts = (q?.historicalDataPrice || [])
+        .filter((x) => x.close != null)
+        .map((x) => ({ t: x.date * 1000, p: x.close }))
+        .sort((a, b) => a.t - b.t);
+    } else {
+      if (!state.config.twelveKey) throw new Error("NO_TD_KEY");
+      const crypto = p === "crypto";
+      const params = range === "1D"
+        ? { symbol: tdSymbol(symbol), interval: crypto ? "15min" : "5min", outputsize: crypto ? 96 : 80 }
+        : { symbol: tdSymbol(symbol), interval: "1day", outputsize: crypto ? RANGES[range].cryptoDays : RANGES[range].days };
+      const j = await twelve(params, priority);
+      const tz = j.meta && j.meta.exchange_timezone;
+      let vals = j.values || [];
+      // 1D das ações: fica só com o último pregão
+      if (range === "1D" && !crypto && vals.length) {
+        const day = vals[0].datetime.slice(0, 10);
+        vals = vals.filter((v) => v.datetime.startsWith(day));
+      }
+      pts = vals.map((v) => ({ t: zonedToUtc(v.datetime, tz), p: parseFloat(v.close) })).reverse();
+    }
+    if (pts.length < 2) err = "Sem histórico para este período.";
+  } catch (e) {
+    err = {
+      B3_INTRADAY: "O gráfico do dia da B3 é exclusivo dos planos pagos da brapi (no grátis só as ações de teste têm). Veja 1M ou 3M.",
+      NO_TD_KEY: "Para ver o histórico, adicione a chave grátis da Twelve Data nas configurações (⚙).",
+      BAD_KEY: "Chave da Twelve Data inválida — confira nas configurações (⚙).",
+      RATE_LIMIT: "Limite de pedidos atingido — tente de novo em 1 minuto.",
+      BRAPI_TOKEN: "A brapi recusou o token — confira nas configurações (⚙).",
+    }[e.message] || "Não consegui carregar o histórico.";
+  }
+  r.hist[range] = { pts, loading: false, at: err ? Date.now() - HIST_TTL + 60_000 : Date.now(), err };
+  markDirty(symbol);
+}
+
+// Pontos que o gráfico desenha em cada período
+function seriesFor(r, range) {
+  const h = r.hist && r.hist[range];
+  if (range !== "1D") return h ? h.pts : [];
+  // 1D = histórico do último pregão + negócios ao vivo que chegaram depois
+  const base = h ? h.pts : [];
+  if (!base.length) return r.ticks;
+  const lastT = base[base.length - 1].t;
+  return base.concat(r.ticks.filter((t) => t.t > lastT));
 }
 
 /* =========================================================
@@ -706,7 +819,7 @@ function lineColor(r) {
 
 function drawSpark(canvas, r) {
   const { ctx, w, h } = setupCanvas(canvas);
-  const pts = r.ticks;
+  const pts = seriesFor(r, "1D"); // [ALTERADO] último pregão + ao vivo
   const pad = 3;
 
   if (pts.length < 2) {
@@ -754,8 +867,9 @@ function openDetail(symbol, name = "") {
   }
   updateDetail();
   // Recarrega dados completos ao abrir
-  if (p === "b3") loadB3(symbol, true);
+  if (p === "b3") loadB3(symbol);
   else if (p === "us") loadUS(symbol);
+  loadHistory(symbol, state.chartRange, true); // [NOVO] gráfico do período escolhido
 }
 
 function closeDetail() {
@@ -858,26 +972,31 @@ function drawDetailChart() {
   const r = rec(symbol);
   const canvas = $("#d-chart");
   const { ctx, w, h } = setupCanvas(canvas);
-  const pts = r.ticks;
+  const range = state.chartRange;                 // [NOVO] período escolhido
+  const pts = seriesFor(r, range);
+  const hs = r.hist && r.hist[range];
   const empty = $("#d-chart-empty");
+
+  // [NOVO] botões de período: marca o ativo
+  document.querySelectorAll("#range-tabs button").forEach((b) => b.classList.toggle("on", b.dataset.r === range));
 
   if (pts.length < 2) {
     empty.hidden = false;
-    empty.textContent = providerOf(symbol) === "b3"
-      ? "Histórico do dia indisponível no plano atual da brapi."
+    empty.textContent = (hs && hs.loading) ? "Carregando gráfico…"
+      : (hs && hs.err) ? hs.err
       : (providerOf(symbol) === "us" && state.usMarketOpen === false)
-        // [NOVO] mensagem específica com o mercado americano fechado
         ? "Mercado dos EUA fechado. O gráfico começa a se formar quando o pregão abrir."
         : "Aguardando negociações ao vivo… o gráfico vai se formando a cada negócio.";
     chartState.geom = null;
     return;
   }
   empty.hidden = true;
+  const daily = range !== "1D";
 
   const padL = 12, padR = 70, padT = 16, padB = 24;
   let min = Infinity, max = -Infinity;
   for (const p of pts) { if (p.p < min) min = p.p; if (p.p > max) max = p.p; }
-  if (r.prevClose && r.prevClose > min - (max - min) && r.prevClose < max + (max - min)) {
+  if (!daily && r.prevClose && r.prevClose > min - (max - min) && r.prevClose < max + (max - min)) {
     min = Math.min(min, r.prevClose); max = Math.max(max, r.prevClose);
   }
   const span = (max - min) || max * 0.001 || 1;
@@ -885,7 +1004,7 @@ function drawDetailChart() {
   const t0 = pts[0].t, t1 = pts[pts.length - 1].t;
   const x = (t) => padL + ((t - t0) / (t1 - t0 || 1)) * (w - padL - padR);
   const y = (p) => padT + (1 - (p - min) / (max - min)) * (h - padT - padB);
-  chartState.geom = { pts, x, y, padL, padR, padT, padB, w, h, symbol };
+  chartState.geom = { pts, x, y, padL, padR, padT, padB, w, h, symbol, daily };
 
   const css = getComputedStyle(document.documentElement);
   const muted = css.getPropertyValue("--muted");
@@ -903,22 +1022,28 @@ function drawDetailChart() {
     const cv = convert(v, symbol); // [ALTERADO] eixo do gráfico na moeda escolhida
     ctx.fillText(fmtNum(cv, cv < 10 ? 3 : 2), w - padR + 8, yy);
   }
-  // Rótulos de horário (início e fim)
+  // Rótulos de tempo (início e fim) — [ALTERADO] data no 1M/3M, hora no 1D
   ctx.textBaseline = "alphabetic";
-  ctx.fillText(new Date(t0).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }), padL, h - 7);
-  const endLbl = new Date(t1).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const tl = (t) => daily
+    ? new Date(t).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })
+    : new Date(t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  ctx.fillText(tl(t0), padL, h - 7);
+  const endLbl = tl(t1);
   ctx.fillText(endLbl, w - padR - ctx.measureText(endLbl).width, h - 7);
 
-  // Linha de referência (fechamento anterior)
-  if (r.prevClose) {
+  // Linha de referência (fechamento anterior) — só no 1D
+  if (!daily && r.prevClose) {
     ctx.strokeStyle = muted; ctx.globalAlpha = .6;
     ctx.setLineDash([4, 4]);
     ctx.beginPath(); ctx.moveTo(padL, y(r.prevClose)); ctx.lineTo(w - padR, y(r.prevClose)); ctx.stroke();
     ctx.setLineDash([]); ctx.globalAlpha = 1;
   }
 
-  // Linha de preço
-  const color = lineColor(r);
+  // Linha de preço — [ALTERADO] no 1M/3M a cor compara o primeiro com o último ponto
+  const css2 = getComputedStyle(document.documentElement);
+  const color = daily
+    ? css2.getPropertyValue(pts[pts.length - 1].p >= pts[0].p ? "--up" : "--down")
+    : lineColor(r);
   ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = "round";
   ctx.beginPath();
   pts.forEach((p, i) => (i ? ctx.lineTo(x(p.t), y(p.p)) : ctx.moveTo(x(p.t), y(p.p))));
@@ -959,11 +1084,23 @@ function drawCrosshair(ctx) {
   ctx.beginPath(); ctx.arc(xx, yy, 4, 0, Math.PI * 2); ctx.fill();
 
   const tip = $("#d-tooltip");
-  tip.innerHTML = `<b>${fmtPrice(p.p, g.symbol)}</b><br><span class="muted">${fmtTime(p.t)}</span>`;
+  const when = g.daily ? new Date(p.t).toLocaleDateString("pt-BR") : fmtTime(p.t); // [ALTERADO]
+  tip.innerHTML = `<b>${fmtPrice(p.p, g.symbol)}</b><br><span class="muted">${when}</span>`;
   tip.hidden = false;
   const tw = tip.offsetWidth;
   tip.style.left = `${Math.min(Math.max(xx - tw / 2, 4), g.w - tw - 4)}px`;
   tip.style.top = `${Math.max(yy - 52, 4)}px`;
+}
+
+// [NOVO] Botões de período do gráfico
+function bindRangeTabs() {
+  $("#range-tabs").addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-r]");
+    if (!b || !state.detail) return;
+    state.chartRange = b.dataset.r;
+    loadHistory(state.detail, state.chartRange, true);
+    drawDetailChart();
+  });
 }
 
 function bindChartHover() {
@@ -1026,6 +1163,7 @@ function addSymbol(symbol, name = "", opts = {}) {
   const hadPreview = !!state.data[symbol];        // [NOVO] veio da prévia: aproveita os dados
   rec(symbol);
   if (!hadPreview) fetchInitial(symbol);
+  loadHistory(symbol, "1D"); // [NOVO] mini-gráfico do card
   markDirty(symbol);
   if (providerOf(symbol) !== "b3") subscribe(symbol);
   toast(`${displaySymbol(symbol)} adicionado.`);
@@ -1046,7 +1184,7 @@ function removeSymbol(symbol) {
 function fetchInitial(symbol) {
   const p = providerOf(symbol);
   if (p === "us") return loadUS(symbol);
-  if (p === "b3") return loadB3(symbol, true);
+  if (p === "b3") return loadB3(symbol);
   return loadCryptoStats(symbol);
 }
 
@@ -1347,7 +1485,7 @@ function startTimers() {
 
   // B3 (com atraso) a cada 2 min
   state.timers.push(setInterval(() => {
-    state.list.filter((i) => providerOf(i.symbol) === "b3").forEach((i) => loadB3(i.symbol, state.detail === i.symbol));
+    state.list.filter((i) => providerOf(i.symbol) === "b3").forEach((i) => loadB3(i.symbol));
   }, B3_POLL_MS));
 
   // Cripto: variação 24h
@@ -1373,6 +1511,12 @@ async function loadAll() {
     if (p === "us") await sleep(250);              // não estoura o limite
     if (p === "b3") await sleep(1500);             // [NOVO] brapi: uma de cada vez, com folga
   }
+  // [NOVO] Mini-gráficos dos cards: último pregão (Twelve Data / ações de teste da brapi)
+  for (const item of state.list) {
+    const p = providerOf(item.symbol);
+    if (p === "b3" ? BRAPI_TEST.includes(displaySymbol(item.symbol)) : state.config.twelveKey)
+      loadHistory(item.symbol, "1D");
+  }
 }
 
 /* =========================================================
@@ -1381,6 +1525,7 @@ async function loadAll() {
 function openSettings() {
   $("#finnhub-key").value = state.config.finnhubKey;
   $("#brapi-key").value = state.config.brapiKey;
+  $("#twelve-key").value = state.config.twelveKey || ""; // [NOVO]
   $("#settings-overlay").hidden = false;
   setTimeout(() => $("#finnhub-key").focus(), 50);
 }
@@ -1394,6 +1539,8 @@ function bindSettings() {
     e.preventDefault();
     state.config.finnhubKey = $("#finnhub-key").value.trim();
     state.config.brapiKey = $("#brapi-key").value.trim();
+    state.config.twelveKey = $("#twelve-key").value.trim(); // [NOVO]
+    Object.values(state.data).forEach((r) => (r.hist = {})); // recarrega gráficos com as chaves novas
     save(STORAGE_CONFIG, state.config);
     closeSettings();
     toast("Chaves salvas. Conectando…");
@@ -1450,6 +1597,7 @@ function init() {
   bindSettings();
   bindGlobal();
   bindChartHover();
+  bindRangeTabs(); // [NOVO]
   bindChannel();  // [NOVO] conversa entre abas abertas
   bindCurrency(); // [NOVO] monta o seletor de moeda
   loadFx();       // [NOVO] busca o câmbio
