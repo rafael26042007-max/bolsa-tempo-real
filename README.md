@@ -139,7 +139,7 @@ js/noticias.js        → indicadores e notícias do painel
 js/tema-pwa.js        → tema claro/escuro e instalação como app
 js/configuracoes.js   → janela de configurações com abas
 sw.js                 → service worker (app instalável / funciona offline)
-manifest.webmanifest  → nome, cores e ícones do app
+manifest.json         → nome, cores e ícones do app
 icons/                → ícones do app
 ```
 

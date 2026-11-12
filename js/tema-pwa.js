@@ -6,7 +6,7 @@
    é aplicado num <script> no <head> do index.html, antes da
    página aparecer, para não "piscar".)
 
-   PWA: com o manifest.webmanifest e o sw.js, o Pregão pode ser
+   PWA: com o manifest.json e o sw.js, o Pregão pode ser
    instalado como aplicativo (ícone na tela do celular/PC, abre
    sem a barra do navegador). Funciona em https (GitHub Pages)
    e em localhost. O botão "Instalar app" aparece sozinho quando

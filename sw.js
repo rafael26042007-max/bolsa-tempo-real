@@ -8,7 +8,7 @@
    preço velho seria pior do que nenhum preço.
    Mude CACHE ao alterar esta lista de arquivos.
    ========================================================= */
-const CACHE = "pregao-v2";
+const CACHE = "pregao-v3"; // [ALTERADO] v3: manifest renomeado para .json
 const APP_FILES = [
   "./",
   "index.html",
@@ -20,7 +20,7 @@ const APP_FILES = [
   "js/noticias.js",
   "js/tema-pwa.js",
   "js/configuracoes.js",
-  "manifest.webmanifest",
+  "manifest.json",
   "icons/icon-192.png",
   "icons/icon-512.png",
 ];
