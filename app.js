@@ -1010,7 +1010,8 @@ async function runSearch(q) {
   // b) brapi: ações, FIIs e BDRs da B3
   tasks.push(
     brapi("/quote/list", { search: q, limit: 8 }).then((j) =>
-      (j.stocks || []).map((s) => ({ symbol: `${s.stock}.SA`, name: s.name, tag: "B3" }))
+      // [ALTERADO] a lista da brapi já traz preço e variação — aproveita sem gastar requisição
+      (j.stocks || []).map((s) => ({ symbol: `${s.stock}.SA`, name: s.name, tag: "B3", price: s.close, pct: s.change }))
     ).catch(() => [])
   );
   // c) Criptos (lista local)
@@ -1022,11 +1023,16 @@ async function runSearch(q) {
   if (seq !== searchSeq) return; // chegou uma busca mais nova
 
   // Junta e remove repetidos
-  const seen = new Set();
+  const seen = new Map();
   currentResults = groups.flat().filter((r) => {
     const k = r.symbol.toUpperCase();
-    if (seen.has(k)) return false;
-    seen.add(k); return true;
+    if (seen.has(k)) {
+      // [ALTERADO] repetido: aproveita o preço que veio da outra fonte
+      const kept = seen.get(k);
+      if (kept.price == null && r.price != null) { kept.price = r.price; kept.pct = r.pct; }
+      return false;
+    }
+    seen.set(k, r); return true;
   });
 
   // Prioriza código exato
@@ -1036,28 +1042,95 @@ async function runSearch(q) {
 
   activeIdx = currentResults.length ? 0 : -1;
   renderResults(q);
+  loadResultQuotes(seq); // [NOVO] busca o preço de cada resultado
 }
 
+// [ALTERADO] Cada resultado agora mostra o preço, a variação do dia e um botão de adicionar
 function renderResults(q) {
   const box = $("#search-results");
   if (!currentResults.length) {
     box.innerHTML = `<li class="r-info">Nada encontrado para “${esc(q)}”.${state.config.finnhubKey ? "" : " Configure a chave da Finnhub para buscar ações dos EUA."}</li>`;
     return;
   }
-  box.innerHTML = currentResults.map((r, i) => `
+  box.innerHTML = currentResults.map((r, i) => {
+    const inList = state.list.some((x) => x.symbol === r.symbol);
+    return `
     <li data-i="${i}" class="${i === activeIdx ? "active" : ""}">
-      <span class="r-sym">${esc(displaySymbol(r.symbol))}</span>
-      <span class="r-name">${esc(r.name)}</span>
-      <span class="r-tag">${esc(r.tag)}</span>
-    </li>`).join("");
+      <div class="r-main">
+        <span class="r-sym">${esc(displaySymbol(r.symbol))}</span>
+        <span class="r-name">${esc(r.name)}</span>
+        <span class="r-tag">${esc(r.tag)}</span>
+      </div>
+      <div class="r-quote" data-q="${i}">${resultQuoteHtml(r)}</div>
+      <button type="button" class="r-add ${inList ? "added" : ""}" data-add="${i}"
+        title="${inList ? "Já está na sua lista — clique para ver detalhes" : "Adicionar à minha lista"}">
+        ${inList ? "✓ Na lista" : "+ Adicionar"}
+      </button>
+    </li>`;
+  }).join("");
 }
 
+// Preço + variação de um resultado (ou "carregando…" / "—")
+function resultQuoteHtml(r) {
+  const own = state.data[r.symbol];                 // se já está na lista, usa o preço ao vivo
+  const price = own && own.price != null ? own.price : r.price;
+  let pct = r.pct;
+  if (own && own.price != null && own.prevClose) pct = ((own.price - own.prevClose) / own.prevClose) * 100;
+  if (price == null) return r.loading ? `<span class="muted">carregando…</span>` : `<span class="muted">—</span>`;
+  const ch = fmtChange(pct ?? 0, pct);
+  return `<span class="r-price">${fmtPrice(price, r.symbol)}</span>` +
+         (pct != null ? `<span class="change ${ch.cls}">${ch.text}</span>` : "");
+}
+
+// [NOVO] Busca as cotações dos resultados (com cache de 60 s para não estourar o limite)
+const quoteCache = new Map(); // symbol → { price, pct, at }
+const MAX_RESULT_QUOTES = 8;  // só os primeiros resultados (limite de 60 req/min da Finnhub)
+
+async function loadResultQuotes(seq) {
+  const jobs = currentResults.slice(0, MAX_RESULT_QUOTES).map(async (r, i) => {
+    if (r.price != null || state.data[r.symbol]?.price != null) return;   // já tem preço
+    const cached = quoteCache.get(r.symbol);
+    if (cached && Date.now() - cached.at < 60_000) { Object.assign(r, cached); return paintQuote(i, seq); }
+
+    const p = providerOf(r.symbol);
+    if (p === "b3" || !state.config.finnhubKey) return; // B3 sem preço na lista: evita gastar a brapi
+    r.loading = true; paintQuote(i, seq);
+    try {
+      const q = await finnhub("/quote", { symbol: r.symbol });
+      if (q && q.c) {
+        r.price = q.c;
+        r.pct = q.pc ? ((q.c - q.pc) / q.pc) * 100 : null;
+        quoteCache.set(r.symbol, { price: r.price, pct: r.pct, at: Date.now() });
+      }
+    } catch { /* sem acesso / limite: fica "—" */ }
+    r.loading = false;
+    paintQuote(i, seq);
+  });
+  await Promise.all(jobs);
+}
+
+// Atualiza só o preço daquela linha (sem redesenhar a lista inteira)
+function paintQuote(i, seq) {
+  if (seq !== searchSeq) return;                    // busca antiga
+  const el = document.querySelector(`#search-results [data-q="${i}"]`);
+  if (el) el.innerHTML = resultQuoteHtml(currentResults[i]);
+}
+
+// [ALTERADO] Adiciona sem fechar a busca — dá pra adicionar várias seguidas
 function pickResult(i) {
   const r = currentResults[i];
   if (!r) return;
+  if (state.list.some((x) => x.symbol === r.symbol)) {
+    $("#search-results").hidden = true;
+    openDetail(r.symbol);
+    return;
+  }
   addSymbol(r.symbol, r.name);
-  $("#search-input").value = "";
-  $("#search-results").hidden = true;
+  if (r.price != null) {                            // já mostra o preço no card novo
+    const d = rec(r.symbol);
+    if (d.price == null) { d.price = r.price; markDirty(r.symbol); }
+  }
+  renderResults($("#search-input").value);
 }
 
 function bindSearch() {
@@ -1083,9 +1156,15 @@ function bindSearch() {
       box.hidden = true; input.blur();
     }
   });
+  // [ALTERADO] só o botão adiciona; clicar na linha apenas seleciona
   $("#search-results").addEventListener("mousedown", (e) => {
     const li = e.target.closest("li[data-i]");
-    if (li) { e.preventDefault(); pickResult(+li.dataset.i); }
+    if (!li) return;
+    e.preventDefault();                               // não deixa a busca fechar
+    const btn = e.target.closest("[data-add]");
+    if (btn) { pickResult(+btn.dataset.add); return; }
+    activeIdx = +li.dataset.i;
+    renderResults($("#search-input").value);
   });
   input.addEventListener("blur", () => setTimeout(() => ($("#search-results").hidden = true), 120));
   input.addEventListener("focus", () => { if (currentResults.length && input.value) $("#search-results").hidden = false; });

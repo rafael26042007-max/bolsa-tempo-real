@@ -169,7 +169,7 @@ input { font: inherit; }
 }
 
 .search-results {
-  position: absolute; left: 0; right: 0; top: calc(100% + 8px);
+  position: absolute; left: -90px; right: -90px; top: calc(100% + 8px); /* [ALTERADO] mais largo para caber o preço */
   list-style: none;
   background: var(--surface-2);
   border: 1px solid var(--border-strong);
@@ -180,19 +180,43 @@ input { font: inherit; }
   z-index: 30;
   padding: 6px;
 }
+/* [ALTERADO] linha do resultado: nome | preço | botão */
 .search-results li {
-  display: flex; align-items: center; gap: 12px;
-  padding: 10px 12px;
+  display: flex; align-items: center; gap: 14px;
+  padding: 10px 10px 10px 12px;
   border-radius: 10px;
-  cursor: pointer;
+  cursor: default;
 }
 .search-results li:hover, .search-results li.active { background: rgba(255, 255, 255, .05); }
-.search-results .r-sym { font-family: var(--mono); font-weight: 500; min-width: 92px; }
+.search-results .r-main { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; }
+.search-results .r-sym { font-family: var(--mono); font-weight: 500; min-width: 82px; }
 .search-results .r-name { flex: 1; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .search-results .r-tag {
-  font-size: 11px; color: var(--muted);
+  font-size: 11px; color: var(--muted); white-space: nowrap;
   border: 1px solid var(--border-strong); border-radius: 6px; padding: 1px 6px;
 }
+/* [NOVO] preço e variação no resultado */
+.search-results .r-quote {
+  display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+  min-width: 190px; font-size: 13px;
+}
+.search-results .r-price { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.search-results .r-quote .change { font-size: 12px; padding: 2px 6px; }
+/* [NOVO] botão adicionar */
+.r-add {
+  flex-shrink: 0;
+  padding: 6px 11px;
+  border-radius: 8px;
+  border: 1px solid rgba(201, 179, 126, .45);
+  background: transparent;
+  color: var(--accent);
+  font-size: 12.5px; font-weight: 500;
+  white-space: nowrap;
+  transition: background .15s, color .15s;
+}
+.r-add:hover { background: var(--accent); color: #17140c; }
+.r-add.added { border-color: var(--border-strong); color: var(--muted); }
+.r-add.added:hover { background: var(--surface); color: var(--text); }
 .search-results .r-info { color: var(--muted); padding: 12px; cursor: default; }
 .search-results .r-info:hover { background: none; }
 
@@ -414,10 +438,19 @@ input { font: inherit; }
 .footer { text-align: center; padding: 22px; border-top: 1px solid var(--border); }
 
 /* ---------- 8. Responsivo ---------- */
+@media (max-width: 860px) {
+  .search-results { left: 0; right: 0; }
+}
 @media (max-width: 640px) {
   .topbar { padding: 12px 16px; }
   #market-status { display: none; }
   .container { padding: 0 16px 40px; }
   .search-section { padding: 36px 0 24px; }
   .search-box kbd { display: none; }
+  /* [NOVO] celular: busca na largura da tela e preço embaixo do nome */
+  .search-results { left: 0; right: 0; }
+  .search-results li { flex-wrap: wrap; gap: 6px 10px; }
+  .search-results .r-main { flex-basis: 100%; }
+  .search-results .r-tag { display: none; }
+  .search-results .r-quote { min-width: 0; justify-content: flex-start; flex: 1; }
 }
