@@ -18,6 +18,27 @@ const FINNHUB_REST = "https://finnhub.io/api/v1";
 const FINNHUB_WS = "wss://ws.finnhub.io";
 const BRAPI = "https://brapi.dev/api";
 const BINANCE = "https://api.binance.com/api/v3";
+// [NOVO] Câmbio: open.er-api (160+ moedas) e reserva Frankfurter (Banco Central Europeu) — grátis e sem chave
+const FX_APIS = [
+  { url: "https://open.er-api.com/v6/latest/USD", pick: (j) => j.rates, date: (j) => j.time_last_update_utc && new Date(j.time_last_update_utc).toISOString().slice(0, 10) },
+  { url: "https://api.frankfurter.dev/v1/latest?base=USD", pick: (j) => ({ USD: 1, ...j.rates }), date: (j) => j.date },
+];
+const FX_REFRESH_MS = 60 * 60 * 1000; // câmbio de referência muda pouco: 1x por hora
+
+// [NOVO] Moedas que aparecem no seletor ("orig" = moeda original do ativo)
+const CURRENCIES = [
+  { code: "orig", label: "Moeda original" },
+  { code: "BRL", label: "R$ · BRL" },
+  { code: "USD", label: "US$ · USD" },
+  { code: "EUR", label: "€ · EUR" },
+  { code: "GBP", label: "£ · GBP" },
+  { code: "JPY", label: "¥ · JPY" },
+  { code: "CAD", label: "C$ · CAD" },
+  { code: "CHF", label: "Fr · CHF" },
+  { code: "CNY", label: "¥ · CNY" },
+  { code: "ARS", label: "$ · ARS" },
+];
+const STORAGE_CCY = "pregao.currency";
 
 const STORAGE_CONFIG = "pregao.config";
 const STORAGE_LIST = "pregao.watchlist";
@@ -61,6 +82,9 @@ const state = {
   ws: null,
   wsRetry: 0,
   detail: null,      // símbolo aberto no painel
+  currency: load(STORAGE_CCY, "orig"), // [NOVO] moeda escolhida no seletor
+  fx: { USD: 1 },    // [NOVO] quanto vale 1 dólar em cada moeda (ex.: fx.BRL = 5,4)
+  fxDate: null,      // [NOVO] data da cotação do câmbio
   dirty: new Set(),  // símbolos que precisam ser redesenhados
   timers: [],
 };
@@ -95,21 +119,44 @@ function currencyOf(symbol) {
   return providerOf(symbol) === "b3" ? "BRL" : "USD";
 }
 
+// [NOVO] Moeda em que o valor vai ser MOSTRADO (a escolhida ou a original)
+function targetCurrency(symbol) {
+  const c = state.currency;
+  if (c === "orig" || !state.fx[c]) return currencyOf(symbol); // sem câmbio carregado → original
+  return c;
+}
+// [NOVO] Converte um valor da moeda original do ativo para a moeda escolhida
+// Regra de três via dólar: valor ÷ (moeda original por US$) × (moeda alvo por US$)
+function convert(v, symbol) {
+  if (v == null || isNaN(v)) return v;
+  const from = currencyOf(symbol), to = targetCurrency(symbol);
+  if (from === to) return v;
+  return (v / state.fx[from]) * state.fx[to];
+}
+
+// [ALTERADO] Agora converte antes de formatar
 function fmtPrice(v, symbol) {
   if (v == null || isNaN(v)) return "—";
-  const digits = v < 1 ? 6 : v < 10 ? 3 : 2;
+  v = convert(v, symbol);
+  const currency = targetCurrency(symbol);
+  // Moedas sem centavos (ex.: iene) usam 0 casas; as outras, 2
+  const base = new Intl.NumberFormat("pt-BR", { style: "currency", currency }).resolvedOptions().minimumFractionDigits;
+  const digits = v < 1 ? 6 : v < 10 ? Math.max(base, 3) : base;
   return new Intl.NumberFormat("pt-BR", {
-    style: "currency", currency: currencyOf(symbol),
-    minimumFractionDigits: 2, maximumFractionDigits: digits,
+    style: "currency", currency,
+    minimumFractionDigits: base, maximumFractionDigits: digits,
   }).format(v);
 }
 function fmtNum(v, digits = 2) {
   if (v == null || isNaN(v)) return "—";
   return new Intl.NumberFormat("pt-BR", { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(v);
 }
+// [ALTERADO] Converte e usa o símbolo da moeda escolhida
 function fmtBig(v, symbol) {
   if (!v) return "—";
-  const cur = currencyOf(symbol) === "BRL" ? "R$" : "US$";
+  v = convert(v, symbol);
+  const code = targetCurrency(symbol);
+  const cur = { BRL: "R$", USD: "US$" }[code] || code;
   if (v >= 1e12) return `${cur} ${fmtNum(v / 1e12)} tri`;
   if (v >= 1e9) return `${cur} ${fmtNum(v / 1e9)} bi`;
   if (v >= 1e6) return `${cur} ${fmtNum(v / 1e6)} mi`;
@@ -223,17 +270,25 @@ async function loadUS(symbol) {
 }
 
 /* ---------- 4.2 Ações da B3 (brapi, com atraso) ---------- */
+// [CORRIGIDO] A brapi devolvia 429 (limite de requisições) porque o histórico do dia
+// era pedido de novo a cada atualização. Agora: histórico só 1 vez por ativo e,
+// se der 429, o app espera 2 min sem chamar a brapi e mantém o último preço na tela.
+let brapiPausedUntil = 0;
+
 async function loadB3(symbol, withHistory = false) {
   const r = rec(symbol);
   const ticker = displaySymbol(symbol);
+  if (Date.now() < brapiPausedUntil) return;             // em pausa por limite
+  const wantHistory = withHistory && !r.histTried;       // histórico só uma vez
   try {
-    const params = withHistory ? { range: "1d", interval: "5m" } : {};
     let json;
-    try { json = await brapi(`/quote/${ticker}`, params); }
-    catch (e) {
-      // Se o histórico não estiver liberado no plano, tenta só a cotação
-      if (withHistory && e.message !== "BRAPI_TOKEN") json = await brapi(`/quote/${ticker}`);
-      else throw e;
+    try {
+      json = await brapi(`/quote/${ticker}`, wantHistory ? { range: "1d", interval: "5m" } : {});
+    } catch (e) {
+      if (!wantHistory || e.message === "BRAPI_TOKEN" || e.message === "RATE_LIMIT") throw e;
+      json = await brapi(`/quote/${ticker}`);           // histórico indisponível → só cotação
+    } finally {
+      if (wantHistory) r.histTried = true;
     }
     const q = json.results && json.results[0];
     if (!q || q.regularMarketPrice == null) throw new Error("NOT_FOUND");
@@ -251,7 +306,7 @@ async function loadB3(symbol, withHistory = false) {
       name: q.longName || q.shortName, logo: q.logourl, marketCap: q.marketCap,
       exchange: "B3", country: "BR",
     };
-    setName(symbol, q.shortName || q.longName);
+    setName(symbol, q.longName || q.shortName);
 
     // Histórico intradiário (se veio)
     if (Array.isArray(q.historicalDataPrice) && q.historicalDataPrice.length) {
@@ -262,34 +317,54 @@ async function loadB3(symbol, withHistory = false) {
     }
     pushTick(r, r.lastTs, r.price);
   } catch (e) {
+    if (e.message === "RATE_LIMIT") {
+      brapiPausedUntil = Date.now() + 120_000;           // pausa de 2 min
+      if (r.price != null) { markDirty(symbol); return; } // mantém o último preço
+    }
     r.status = "err";
     r.note = e.message === "BRAPI_TOKEN" ? "Precisa do token da brapi"
            : e.message === "NOT_FOUND" ? "Código não encontrado na B3"
-           : e.message === "RATE_LIMIT" ? "Limite da brapi — aguarde"
+           : e.message === "RATE_LIMIT" ? "Limite da brapi — tentando de novo em 2 min"
            : "Falha ao buscar (brapi)";
   }
   markDirty(symbol);
 }
 
 /* ---------- 4.3 Cripto (variação de 24h pela Binance) ---------- */
+// [CORRIGIDO] api.binance.com dava ERR_CERT_AUTHORITY_INVALID na sua rede
+// (antivírus ou provedor interceptando o certificado). Agora tenta primeiro o
+// domínio público de dados da Binance; se nenhum funcionar, para de tentar por 15 min
+// e usa a variação desde que a página abriu. O preço ao vivo (Finnhub) não é afetado.
+const BINANCE_HOSTS = ["https://data-api.binance.vision/api/v3", BINANCE];
+let binanceHost = null;          // domínio que funcionou
+let binancePausedUntil = 0;
+
 async function loadCryptoStats(symbol) {
   const r = rec(symbol);
   const pair = symbol.split(":")[1];
-  try {
-    const res = await fetch(`${BINANCE}/ticker/24hr?symbol=${pair}`);
-    if (!res.ok) throw new Error();
-    const s = await res.json();
-    r.prevClose = parseFloat(s.openPrice);  // referência = preço de 24h atrás
-    r.open = parseFloat(s.openPrice);
-    r.high = parseFloat(s.highPrice);
-    r.low = parseFloat(s.lowPrice);
-    r.volume = parseFloat(s.volume);
-    if (r.price == null) { r.price = parseFloat(s.lastPrice); r.lastTs = Date.now(); }
-    if (r.status === "wait") r.status = "ready";
-    r.note = "Variação de 24h";
-  } catch {
-    r.note = "Variação desde que você abriu a página";
+  if (Date.now() < binancePausedUntil) return;
+  const hosts = binanceHost ? [binanceHost] : BINANCE_HOSTS;
+  for (const host of hosts) {
+    try {
+      const res = await fetch(`${host}/ticker/24hr?symbol=${pair}`);
+      if (!res.ok) throw new Error();
+      const s = await res.json();
+      binanceHost = host;
+      r.prevClose = parseFloat(s.openPrice);  // referência = preço de 24h atrás
+      r.open = parseFloat(s.openPrice);
+      r.high = parseFloat(s.highPrice);
+      r.low = parseFloat(s.lowPrice);
+      r.volume = parseFloat(s.volume);
+      if (r.price == null) { r.price = parseFloat(s.lastPrice); r.lastTs = Date.now(); }
+      if (r.status === "wait") r.status = "ready";
+      r.note = "Variação de 24h";
+      markDirty(symbol);
+      return;
+    } catch { /* tenta o próximo domínio */ }
   }
+  binanceHost = null;
+  binancePausedUntil = Date.now() + 15 * 60_000;
+  r.note = "Variação desde que você abriu a página";
   markDirty(symbol);
 }
 
@@ -427,6 +502,8 @@ function badgeFor(symbol, r) {
   if (r.status === "delay") return { text: "B3 · ~30 MIN", cls: "delay" };
   if (r.status === "live") return { text: "AO VIVO", cls: "live" };
   if (providerOf(symbol) === "b3") return { text: "B3", cls: "" };
+  // [NOVO] Fora do pregão americano mostra "FECHADO" em vez de "AGUARDANDO"
+  if (providerOf(symbol) === "us" && state.usMarketOpen === false) return { text: "FECHADO", cls: "" };
   return { text: "AGUARDANDO", cls: "" };
 }
 
@@ -573,7 +650,12 @@ function updateDetail() {
     crypto: r.status === "live" ? "● Ao vivo pela Finnhub (Binance) — 24h por dia." : "Aguardando negociações…",
     b3: "brapi · plano grátis com atraso de ~30 min. Atualiza a cada 2 min.",
   }[provider];
-  $("#d-source").textContent = r.status === "err" ? `⚠ ${r.note}` : `${src} Último: ${fmtTime(r.lastTs)}`;
+  // [ALTERADO] Avisa quando o valor está convertido
+  const from = currencyOf(symbol), to = targetCurrency(symbol);
+  const fxNote = from !== to
+    ? ` Convertido de ${from} para ${to} pelo câmbio de referência${state.fxDate ? ` de ${state.fxDate.split("-").reverse().join("/")}` : ""}.`
+    : "";
+  $("#d-source").textContent = r.status === "err" ? `⚠ ${r.note}` : `${src} Último: ${fmtTime(r.lastTs)}.${fxNote}`;
 
   // Estatísticas
   const refLabel = provider === "crypto" ? "Preço 24h atrás" : "Fechamento anterior";
@@ -646,7 +728,8 @@ function drawDetailChart() {
     const yy = y(v);
     ctx.strokeStyle = border; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(w - padR, yy); ctx.stroke();
-    ctx.fillText(fmtNum(v, v < 10 ? 3 : 2), w - padR + 8, yy);
+    const cv = convert(v, symbol); // [ALTERADO] eixo do gráfico na moeda escolhida
+    ctx.fillText(fmtNum(cv, cv < 10 ? 3 : 2), w - padR + 8, yy);
   }
   // Rótulos de horário (início e fim)
   ctx.textBaseline = "alphabetic";
@@ -730,7 +813,8 @@ function bindChartHover() {
    ========================================================= */
 function setName(symbol, name) {
   const item = state.list.find((i) => i.symbol === symbol);
-  if (item && name && item.name !== name) {
+  // [CORRIGIDO] não troca um nome bom (ex.: "Petrobras") pelo próprio código ("PETR4")
+  if (item && name && item.name !== name && name.toUpperCase() !== displaySymbol(symbol)) {
     item.name = name;
     save(STORAGE_LIST, state.list);
     const c = state.cards[symbol];
@@ -917,7 +1001,54 @@ async function loadMarketStatus() {
       ? (s.session === "pre-market" ? "Pré-mercado" : s.session === "post-market" ? "After-market" : "Aberto")
       : (s.holiday ? `Feriado (${s.holiday})` : "Fechado");
     el.textContent = `EUA: ${label}`;
+    state.usMarketOpen = !!s.isOpen; // [NOVO] usado no selo dos cards
+    redrawAll();
   } catch { el.textContent = "Mercado: —"; }
+}
+
+/* =========================================================
+   10.1 [NOVO] CÂMBIO E SELETOR DE MOEDA
+   ========================================================= */
+async function loadFx() {
+  for (const api of FX_APIS) {
+    try {
+      const res = await fetch(api.url);
+      if (!res.ok) continue;
+      const j = await res.json();
+      const rates = api.pick(j);
+      if (!rates || !rates.BRL) continue;
+      state.fx = rates;
+      state.fxDate = api.date(j) || null;
+      updateCurrencyOptions();
+      redrawAll();
+      return;
+    } catch { /* tenta a próxima API */ }
+  }
+  // Nenhuma API respondeu: volta para a moeda original
+  if (state.currency !== "orig") toast("Não consegui carregar o câmbio — mostrando a moeda original.");
+  updateCurrencyOptions();
+}
+
+// Desativa no seletor as moedas que a API de câmbio não trouxe
+function updateCurrencyOptions() {
+  const sel = $("#currency-select");
+  [...sel.options].forEach((o) => { o.disabled = o.value !== "orig" && !state.fx[o.value]; });
+}
+
+// Redesenha todos os cards e o painel aberto
+function redrawAll() {
+  state.list.forEach((i) => markDirty(i.symbol));
+}
+
+function bindCurrency() {
+  const sel = $("#currency-select");
+  sel.innerHTML = CURRENCIES.map((c) => `<option value="${c.code}">${esc(c.label)}</option>`).join("");
+  sel.value = CURRENCIES.some((c) => c.code === state.currency) ? state.currency : "orig";
+  sel.addEventListener("change", () => {
+    state.currency = sel.value;
+    save(STORAGE_CCY, state.currency);
+    redrawAll();
+  });
 }
 
 /* =========================================================
@@ -947,6 +1078,9 @@ function startTimers() {
 
   // Status do mercado a cada 5 min
   state.timers.push(setInterval(loadMarketStatus, 300_000));
+
+  // [NOVO] Câmbio a cada 1 hora
+  state.timers.push(setInterval(loadFx, FX_REFRESH_MS));
 }
 
 async function loadAll() {
@@ -1026,6 +1160,8 @@ function init() {
   bindSettings();
   bindGlobal();
   bindChartHover();
+  bindCurrency(); // [NOVO] monta o seletor de moeda
+  loadFx();       // [NOVO] busca o câmbio
   renderList();
 
   if (!state.config.finnhubKey) {

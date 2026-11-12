@@ -95,6 +95,36 @@ input { font: inherit; }
   100% { box-shadow: 0 0 0 0 rgba(52, 195, 143, 0); }
 }
 
+/* [NOVO] Seletor de moeda (mesmo visual das pílulas do cabeçalho) */
+.currency-picker {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 34px;
+  padding: 0 28px 0 11px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.currency-picker:hover, .currency-picker:focus-within { border-color: var(--accent); color: var(--text); }
+.currency-picker::after {           /* setinha */
+  content: ""; position: absolute; right: 11px; top: 50%;
+  width: 6px; height: 6px; margin-top: -5px;
+  border-right: 1.6px solid currentColor; border-bottom: 1.6px solid currentColor;
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+.currency-picker select {
+  appearance: none; -webkit-appearance: none;
+  background: transparent; border: 0; outline: none;
+  color: inherit; font: inherit; font-size: 13px;
+  cursor: pointer;
+}
+.currency-picker option { background: var(--surface-2); color: var(--text); }
+.currency-picker option:disabled { color: var(--muted); }
+
 .icon-btn {
   display: inline-grid; place-items: center;
   width: 34px; height: 34px;
