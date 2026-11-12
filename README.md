@@ -83,6 +83,7 @@ Feito em HTML, CSS e JavaScript puro: não precisa instalar nada, e também pode
 ### Outros
 - **Tema claro, escuro ou do sistema** (botão ☀/☾ no topo ou em Configurações).
 - **App instalável (PWA)**: ícone na tela inicial e abre sem a barra do navegador.
+- **Modo aplicativo**: no app instalado, bloqueia F12, Ctrl+Shift+I, Ctrl+U e o botão direito (desligue em Configurações → Aparência quando for programar). Não é segurança: o DevTools ainda abre pelo menu ⋮ do navegador.
 - **Várias abas** abertas não brigam pela conexão: só uma conecta e repassa os preços para as outras.
 - Lista, carteira, alertas e preferências ficam **salvos no navegador**.
 
@@ -111,7 +112,7 @@ Feito em HTML, CSS e JavaScript puro: não precisa instalar nada, e também pode
 | Aba | O que tem |
 |---|---|
 | **Chaves de API** | Mostrar/ocultar e **testar** cada chave (mostra se funciona e o uso do dia). |
-| **Aparência** | Tema, moeda, layout compacto, mini-gráficos, piscar preço e atalhos da busca. |
+| **Aparência** | Tema, moeda, layout compacto, mini-gráficos, piscar preço, atalhos da busca e modo aplicativo. |
 | **Atualização** | Status da conexão ao vivo, reconectar, intervalo da B3 (1 a 10 min) e uso das APIs. |
 | **Alertas** | Som (com teste), notificações do sistema (permitir e testar) e lista de todos os alertas. |
 | **Dados e backup** | **Exportar/importar backup** (.json), limpar cache e apagar tudo. |

@@ -79,3 +79,36 @@ on("init", () => {
     navigator.serviceWorker.register("sw.js").catch((err) => console.warn("Service worker:", err));
   }
 });
+
+/* ---------- 3. [NOVO] Modo aplicativo: bloqueia atalhos de desenvolvedor ----------
+   Só vale no app INSTALADO (janela própria, sem barra do navegador) e se a opção
+   "Modo aplicativo" estiver ligada em Configurações → Aparência.
+   Bloqueia: F12, Ctrl+Shift+I / J / C (DevTools), Ctrl+U (ver código-fonte) e o
+   menu do botão direito (exceto em campos de texto, para poder colar).
+   ⚠ Não é segurança: o DevTools ainda abre pelo menu ⋮ do navegador. Serve só para
+   o app se comportar como um aplicativo de verdade.
+   --------------------------------------------------------------------------- */
+function isInstalledApp() {
+  return matchMedia("(display-mode: standalone)").matches ||
+         matchMedia("(display-mode: window-controls-overlay)").matches ||
+         navigator.standalone === true; // iPhone
+}
+function appLockActive() {
+  return state.prefs.appMode !== false && isInstalledApp();
+}
+
+document.addEventListener("keydown", (e) => {
+  if (!appLockActive()) return;
+  const k = e.key.toUpperCase();
+  const devtools = e.key === "F12" ||
+    (e.ctrlKey && e.shiftKey && ["I", "J", "C"].includes(k)) ||
+    (e.metaKey && e.altKey && ["I", "J", "C"].includes(k)) || // Mac
+    (e.ctrlKey && !e.shiftKey && k === "U");
+  if (devtools) { e.preventDefault(); e.stopPropagation(); }
+}, true); // "true" = pega o atalho antes de qualquer outro código
+
+document.addEventListener("contextmenu", (e) => {
+  if (!appLockActive()) return;
+  if (e.target.closest("input, textarea, [contenteditable]")) return; // deixa colar nas caixas de texto
+  e.preventDefault();
+});

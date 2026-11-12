@@ -83,7 +83,7 @@ const state = {
   config: { finnhubKey: "", brapiKey: "", twelveKey: "", ...load(STORAGE_CONFIG, {}) }, // [ALTERADO] + twelveKey
   chartRange: "1D", // [NOVO] período do gráfico do painel: 1D, 1M ou 3M
   // [NOVO] preferências da tela de Configurações (js/configuracoes.js)
-  prefs: { flash: true, sound: true, b3PollMin: 2, compact: false, spark: true, chips: true, ...load("pregao.prefs", {}) },
+  prefs: { flash: true, sound: true, b3PollMin: 2, compact: false, spark: true, chips: true, appMode: true, ...load("pregao.prefs", {}) }, // [ALTERADO] + appMode
   list: load(STORAGE_LIST, null) || DEFAULT_LIST.map((s) => ({ symbol: s, name: "" })),
   data: {},          // symbol → { price, prevClose, high, low, open, ticks[], status, ... }
   cards: {},         // symbol → referências do DOM do card

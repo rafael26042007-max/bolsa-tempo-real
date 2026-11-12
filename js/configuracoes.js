@@ -83,6 +83,10 @@ function refreshLookTab() {
   $("#set-spark").checked = !!state.prefs.spark;
   $("#set-flash").checked = !!state.prefs.flash;
   $("#set-chips").checked = !!state.prefs.chips;
+  $("#set-appmode").checked = state.prefs.appMode !== false; // [NOVO]
+  $("#set-appmode-info").textContent = isInstalledApp()
+    ? "Você está no app instalado: F12, Ctrl+Shift+I, Ctrl+U e o botão direito ficam bloqueados. Desligue quando for programar."
+    : "Vale só no app instalado (agora você está no navegador, então nada é bloqueado aqui).";
 }
 
 function bindLookTab() {
@@ -98,7 +102,7 @@ function bindLookTab() {
     main.dispatchEvent(new Event("change"));  // reaproveita a lógica do app.js
     flashSaved();
   });
-  const toggles = { "set-compact": "compact", "set-spark": "spark", "set-flash": "flash", "set-chips": "chips" };
+  const toggles = { "set-compact": "compact", "set-spark": "spark", "set-flash": "flash", "set-chips": "chips", "set-appmode": "appMode" }; // [ALTERADO] + appMode
   for (const [id, key] of Object.entries(toggles)) {
     $(`#${id}`).addEventListener("change", (e) => {
       state.prefs[key] = e.target.checked;
