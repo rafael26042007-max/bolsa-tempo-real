@@ -50,7 +50,7 @@ const STORAGE_LIST = "pregao.watchlist";
 
 const MAX_TICKS = 900;          // pontos guardados por ativo (1 por segundo ≈ 15 min)
 const WS_SYMBOL_LIMIT = 50;     // limite do plano grátis da Finnhub
-const B3_POLL_MS = 120_000;     // B3 já vem atrasada, então 2 min é suficiente
+// [ALTERADO] o intervalo da B3 agora vem de state.prefs.b3PollMin (Configurações → Atualização)
 const CRYPTO_STATS_MS = 60_000; // variação 24h das criptos
 
 // Atalhos que aparecem embaixo da busca
@@ -82,6 +82,8 @@ const CRYPTOS = [
 const state = {
   config: { finnhubKey: "", brapiKey: "", twelveKey: "", ...load(STORAGE_CONFIG, {}) }, // [ALTERADO] + twelveKey
   chartRange: "1D", // [NOVO] período do gráfico do painel: 1D, 1M ou 3M
+  // [NOVO] preferências da tela de Configurações (js/configuracoes.js)
+  prefs: { flash: true, sound: true, b3PollMin: 2, compact: false, spark: true, chips: true, ...load("pregao.prefs", {}) },
   list: load(STORAGE_LIST, null) || DEFAULT_LIST.map((s) => ({ symbol: s, name: "" })),
   data: {},          // symbol → { price, prevClose, high, low, open, ticks[], status, ... }
   cards: {},         // symbol → referências do DOM do card
@@ -94,6 +96,25 @@ const state = {
   dirty: new Set(),  // símbolos que precisam ser redesenhados
   timers: [],
 };
+
+/* =========================================================
+   2.1 [NOVO] GANCHOS (hooks) PARA OS RECURSOS EXTRAS
+   ---------------------------------------------------------
+   Os recursos novos ficam em arquivos separados (pasta js/).
+   Eles se "inscrevem" aqui e o app avisa quando algo acontece:
+     init          → app terminou de iniciar
+     price(s)      → preço de um ativo mudou (já redesenhado)
+     cardCreated(s, el) / card(s, refs, r) → card criado / atualizado
+     detailOpen(s) / detail(s, r) / detailClose(s) → painel de detalhes
+     listChanged   → ativo adicionado ou removido
+   ========================================================= */
+const hooks = {};
+function on(name, fn) { (hooks[name] = hooks[name] || []).push(fn); }
+function emit(name, ...args) {
+  for (const fn of hooks[name] || []) {
+    try { fn(...args); } catch (e) { console.error(`[gancho ${name}]`, e); }
+  }
+}
 
 /* =========================================================
    3. UTILITÁRIOS
@@ -358,6 +379,11 @@ async function loadB3(symbol, withHistory = false) {
     r.high = q.regularMarketDayHigh;
     r.low = q.regularMarketDayLow;
     r.volume = q.regularMarketVolume;
+    // [NOVO] indicadores que já vêm na cotação da brapi (usados em js/noticias.js)
+    r.metrics = {
+      high52: q.fiftyTwoWeekHigh, low52: q.fiftyTwoWeekLow,
+      pe: q.priceEarnings, eps: q.earningsPerShare,
+    };
     r.lastTs = q.regularMarketTime ? new Date(q.regularMarketTime).getTime() : Date.now();
     r.status = "delay";
     r.note = "";
@@ -760,6 +786,7 @@ function flush() {
   for (const s of state.dirty) {
     updateCard(s);
     if (state.detail === s) updateDetail();
+    emit("price", s); // [NOVO] alertas, carteira, ordenação
   }
   state.dirty.clear();
   $("#last-update").textContent = `Atualizado às ${fmtTime(Date.now())}`;
@@ -800,6 +827,7 @@ function createCard(item) {
     footR: el.querySelector(".foot-r"),
     logoSet: false,
   };
+  emit("cardCreated", item.symbol, el); // [NOVO]
   return el;
 }
 
@@ -840,7 +868,7 @@ function updateCard(symbol) {
   c.change.className = `change ${ch.cls}`;
 
   // Pisca verde/vermelho quando o preço muda
-  if (r.flash) {
+  if (r.flash && state.prefs.flash) { // [ALTERADO] dá para desligar nas Configurações
     c.price.classList.remove("flash-up", "flash-down");
     void c.price.offsetWidth; // reinicia a animação
     c.price.classList.add(r.flash === "up" ? "flash-up" : "flash-down");
@@ -859,6 +887,7 @@ function updateCard(symbol) {
   }
 
   drawSpark(c.spark, r);
+  emit("card", symbol, c, r); // [NOVO]
 }
 
 /* ---------- 6.2 Mini gráfico do card ---------- */
@@ -929,6 +958,7 @@ function openDetail(symbol, name = "") {
     if (p !== "b3") subscribe(symbol);              // preço ao vivo durante a prévia
     if (p === "crypto") loadCryptoStats(symbol);
   }
+  emit("detailOpen", symbol); // [NOVO] recursos montam suas seções do painel
   updateDetail();
   // Recarrega dados completos ao abrir
   if (p === "b3") loadB3(symbol);
@@ -943,8 +973,10 @@ function closeDetail() {
     if (providerOf(pv.symbol) !== "b3") unsubscribe(pv.symbol);
     delete state.data[pv.symbol];
   }
+  const closing = state.detail;
   state.preview = null;
   state.detail = null;
+  if (closing) emit("detailClose", closing); // [NOVO]
   $("#detail-overlay").hidden = true;
   document.body.style.overflow = "";
   $("#d-tooltip").hidden = true;
@@ -957,6 +989,7 @@ function detailAction() {
   if (state.preview) {
     addSymbol(symbol, state.preview.name || (state.data[symbol]?.profile?.name ?? ""), { keepOpen: true });
     state.preview = null;
+    emit("detailOpen", symbol); // [NOVO] remonta as seções (agora fora do modo prévia)
     updateDetail();
   } else {
     removeSymbol(symbol);
@@ -1025,6 +1058,7 @@ function updateDetail() {
   $("#d-profile").innerHTML = html;
 
   drawDetailChart();
+  emit("detail", symbol, r); // [NOVO]
 }
 
 /* ---------- 7.1 Gráfico grande com mira e tooltip ---------- */
@@ -1231,6 +1265,7 @@ function addSymbol(symbol, name = "", opts = {}) {
   markDirty(symbol);
   if (providerOf(symbol) !== "b3") subscribe(symbol);
   toast(`${displaySymbol(symbol)} adicionado.`);
+  emit("listChanged"); // [NOVO]
 }
 
 function removeSymbol(symbol) {
@@ -1243,6 +1278,7 @@ function removeSymbol(symbol) {
   if (providerOf(symbol) !== "b3") unsubscribe(symbol);
   $("#empty-state").hidden = state.list.length > 0;
   closeDetail();
+  emit("listChanged"); // [NOVO]
 }
 
 function fetchInitial(symbol) {
@@ -1547,7 +1583,7 @@ function startTimers() {
   // B3 (com atraso) a cada 2 min
   state.timers.push(setInterval(() => {
     state.list.filter((i) => providerOf(i.symbol) === "b3").forEach((i) => loadB3(i.symbol));
-  }, B3_POLL_MS));
+  }, (state.prefs.b3PollMin || 2) * 60_000)); // [ALTERADO] intervalo escolhido nas Configurações
 
   // Cripto: variação 24h
   state.timers.push(setInterval(() => {
@@ -1673,6 +1709,7 @@ function init() {
   }
   loadAll();
   startTimers();
+  emit("init"); // [NOVO] recursos extras começam aqui
 }
 
 document.addEventListener("DOMContentLoaded", init);
