@@ -225,15 +225,54 @@ async function finnhub(path, params = {}) {
   return res.json();
 }
 
-// [ALTERADO] opts.noToken: não manda o token (usado nas ações de teste)
-async function brapi(path, params = {}, opts = {}) {
-  const qs = new URLSearchParams(params);
-  if (state.config.brapiKey && !opts.noToken) qs.set("token", state.config.brapiKey);
-  const res = await fetch(`${BRAPI}${path}?${qs}`);
-  if (res.status === 401 || res.status === 403) throw new Error("BRAPI_TOKEN");
-  if (res.status === 429) throw new Error("RATE_LIMIT");
-  if (!res.ok) throw new Error(`HTTP_${res.status}`);
-  return res.json();
+// [CORRIGIDO] Fila única da brapi.
+// Causa do 429: a brapi recusa por (1) limite de chamadas SIMULTÂNEAS, (2) limite do
+// modo sem token ("sandbox") e (3) cota mensal. O app disparava várias chamadas ao
+// mesmo tempo (cotações + gráficos de todas as ações da B3 ao abrir) e o gráfico não
+// respeitava a pausa. Agora TODA chamada à brapi passa por esta fila:
+//   • uma de cada vez, com 1,2 s de folga entre elas;
+//   • ao receber 429, pausa pelo tempo do cabeçalho Retry-After (ou 60 s) e
+//     cancela o que estava na fila, em vez de insistir.
+let brapiPausedUntil = 0;
+const brapiQueue = [];
+let brapiBusy = false;
+const BRAPI_GAP_MS = 1200;
+
+function brapiPauseLeft() {            // minutos que faltam da pausa (para as mensagens)
+  return Math.max(1, Math.ceil((brapiPausedUntil - Date.now()) / 60_000));
+}
+
+// opts.noToken: não manda o token (ações de teste) · opts.priority: fura a fila (o que você abriu)
+function brapi(path, params = {}, opts = {}) {
+  return new Promise((resolve, reject) => {
+    if (Date.now() < brapiPausedUntil) return reject(new Error("RATE_LIMIT"));
+    const job = { path, params, opts, resolve, reject };
+    opts.priority ? brapiQueue.unshift(job) : brapiQueue.push(job);
+    runBrapiQueue();
+  });
+}
+
+async function runBrapiQueue() {
+  if (brapiBusy || !brapiQueue.length) return;
+  brapiBusy = true;
+  const { path, params, opts, resolve, reject } = brapiQueue.shift();
+  try {
+    if (Date.now() < brapiPausedUntil) throw new Error("RATE_LIMIT");
+    const qs = new URLSearchParams(params);
+    if (state.config.brapiKey && !opts.noToken) qs.set("token", state.config.brapiKey);
+    const res = await fetch(`${BRAPI}${path}?${qs}`);
+    if (res.status === 429) {
+      const wait = parseInt(res.headers.get("Retry-After"), 10) || 60;
+      brapiPausedUntil = Date.now() + wait * 1000;
+      // cancela o resto da fila: tudo daria 429 também
+      brapiQueue.splice(0).forEach((jb) => jb.reject(new Error("RATE_LIMIT")));
+      throw new Error("RATE_LIMIT");
+    }
+    if (res.status === 401 || res.status === 403) throw new Error("BRAPI_TOKEN");
+    if (!res.ok) throw new Error(`HTTP_${res.status}`);
+    resolve(await res.json());
+  } catch (e) { reject(e); }
+  setTimeout(() => { brapiBusy = false; runBrapiQueue(); }, BRAPI_GAP_MS);
 }
 
 /* ---------- 4.1 Ações dos EUA (Finnhub) ---------- */
@@ -280,8 +319,6 @@ async function loadUS(symbol) {
 // [CORRIGIDO] A brapi devolvia 429 (limite de requisições) porque o histórico do dia
 // era pedido de novo a cada atualização. Agora: histórico só 1 vez por ativo e,
 // se der 429, o app espera 2 min sem chamar a brapi e mantém o último preço na tela.
-let brapiPausedUntil = 0;
-
 // [NOVO] Guarda a última cotação de cada ação da B3 no navegador. Se a brapi
 // recusar (429) logo ao abrir o app, o card mostra o último preço salvo em vez de "ERRO".
 const STORAGE_B3 = "pregao.b3cache";
@@ -289,14 +326,15 @@ const b3Cache = load(STORAGE_B3, {});
 function saveB3Cache(symbol, r) {
   b3Cache[symbol] = {
     price: r.price, prevClose: r.prevClose, open: r.open, high: r.high, low: r.low,
-    volume: r.volume, lastTs: r.lastTs, profile: r.profile,
+    volume: r.volume, lastTs: r.lastTs, profile: r.profile, fetchedAt: r.fetchedAt,
   };
   save(STORAGE_B3, b3Cache);
 }
 function restoreB3Cache(symbol) {
   const c = b3Cache[symbol], r = rec(symbol);
   if (!c || r.price != null) return;
-  Object.assign(r, c, { status: "delay", note: "Último preço salvo" });
+  // [ALTERADO] se foi salvo há menos de 1 min (ex.: recarregou a página), conta como recente
+  Object.assign(r, c, { status: "delay", note: c.fetchedAt && Date.now() - c.fetchedAt < 60_000 ? "" : "Último preço salvo" });
   pushTick(r, r.lastTs, r.price);
   markDirty(symbol);
 }
@@ -309,7 +347,8 @@ async function loadB3(symbol, withHistory = false) {
   if (r.fetchedAt && Date.now() - r.fetchedAt < 60_000) return;
   try {
     // [ALTERADO] só a cotação; o gráfico agora é carregado à parte (bloco 4.4)
-    const json = await brapi(`/quote/${ticker}`, {}, { noToken: BRAPI_TEST.includes(ticker) });
+    // [CORRIGIDO] cotação usa o token (cota mensal grande); o modo sem token fica só para o gráfico do dia
+    const json = await brapi(`/quote/${ticker}`, {}, { noToken: !state.config.brapiKey, priority: state.detail === symbol });
     const q = json.results && json.results[0];
     if (!q || q.regularMarketPrice == null) throw new Error("NOT_FOUND");
 
@@ -332,20 +371,19 @@ async function loadB3(symbol, withHistory = false) {
     r.fetchedAt = Date.now();
     saveB3Cache(symbol, r);                               // [NOVO]
   } catch (e) {
-    if (e.message === "RATE_LIMIT") {
-      brapiPausedUntil = Date.now() + 120_000;           // pausa de 2 min
+    if (e.message === "RATE_LIMIT") {                  // a pausa já foi marcada pela fila
       restoreB3Cache(symbol);                            // [NOVO] tenta o último preço salvo
       if (r.price != null) { markDirty(symbol); return; } // mantém o último preço
       // [ALTERADO] sem preço nenhum: fica "aguardando" (não é erro, é só espera)
       r.status = "wait";
-      r.note = "Limite da brapi — tenta de novo em 2 min";
+      r.note = `Limite da brapi — tenta de novo em ${brapiPauseLeft()} min`;
       markDirty(symbol);
       return;
     }
     r.status = "err";
     r.note = e.message === "BRAPI_TOKEN" ? "Precisa do token da brapi"
            : e.message === "NOT_FOUND" ? "Código não encontrado na B3"
-           : e.message === "RATE_LIMIT" ? "Limite da brapi — tentando de novo em 2 min"
+           : e.message === "RATE_LIMIT" ? `Limite da brapi — tenta de novo em ${brapiPauseLeft()} min`
            : "Falha ao buscar (brapi)";
   }
   markDirty(symbol);
@@ -400,7 +438,26 @@ const RANGES = {
   "1M": { label: "1 mês", brapi: "1mo", days: 22, cryptoDays: 30 },
   "3M": { label: "3 meses", brapi: "3mo", days: 66, cryptoDays: 90 },
 };
-const HIST_TTL = 5 * 60_000; // guarda o histórico por 5 min
+// [ALTERADO] validade do histórico: 5 min no 1D, 6 h no 1M/3M (dados diários mudam pouco)
+const histTtl = (range) => (range === "1D" ? 5 * 60_000 : 6 * 60 * 60_000);
+
+// [NOVO] Histórico salvo no navegador: recarregar a página (o IntelliJ recarrega a cada
+// vez que você salva um arquivo) não gasta a brapi nem a Twelve Data de novo.
+const STORAGE_HIST = "pregao.hist";
+const histStore = load(STORAGE_HIST, {});
+function saveHist(symbol, range, pts) {
+  histStore[`${symbol}|${range}`] = { pts, at: Date.now() };
+  for (const [k, v] of Object.entries(histStore))   // limpa o que já venceu
+    if (Date.now() - v.at > histTtl(k.split("|")[1])) delete histStore[k];
+  save(STORAGE_HIST, histStore);
+}
+function restoreHist(symbol, range) {
+  const r = rec(symbol);
+  r.hist = r.hist || {};
+  const s = histStore[`${symbol}|${range}`];
+  if (!r.hist[range] && s && Date.now() - s.at < histTtl(range))
+    r.hist[range] = { pts: s.pts, loading: false, at: s.at, err: "" };
+}
 
 // Converte "2026-11-12 15:55:00" no fuso da bolsa para milissegundos UTC
 function tzOffsetMs(utcMs, tz) {
@@ -450,8 +507,9 @@ function tdSymbol(symbol) {
 async function loadHistory(symbol, range, priority = false) {
   const r = rec(symbol);
   r.hist = r.hist || {};
+  restoreHist(symbol, range);                        // [NOVO] histórico salvo (sobrevive ao recarregar)
   const h = r.hist[range];
-  if (h && (h.loading || Date.now() - h.at < HIST_TTL)) return;
+  if (h && (h.loading || Date.now() - h.at < histTtl(range))) return;
   const p = providerOf(symbol);
   r.hist[range] = { pts: h ? h.pts : [], loading: true, at: 0, err: "" };
   markDirty(symbol);
@@ -463,7 +521,8 @@ async function loadHistory(symbol, range, priority = false) {
       const test = BRAPI_TEST.includes(ticker);
       if (range === "1D" && !test) throw new Error("B3_INTRADAY");
       const params = range === "1D" ? { range: "1d", interval: "5m" } : { range: RANGES[range].brapi, interval: "1d" };
-      const j = await brapi(`/quote/${ticker}`, params, { noToken: test });
+      // [CORRIGIDO] sem token só o gráfico do dia das ações de teste; 1M/3M usam o token
+      const j = await brapi(`/quote/${ticker}`, params, { noToken: range === "1D" || !state.config.brapiKey, priority });
       const q = j.results && j.results[0];
       pts = (q?.historicalDataPrice || [])
         .filter((x) => x.close != null)
@@ -491,11 +550,16 @@ async function loadHistory(symbol, range, priority = false) {
       B3_INTRADAY: "O gráfico do dia da B3 é exclusivo dos planos pagos da brapi (no grátis só as ações de teste têm). Veja 1M ou 3M.",
       NO_TD_KEY: "Para ver o histórico, adicione a chave grátis da Twelve Data nas configurações (⚙).",
       BAD_KEY: "Chave da Twelve Data inválida — confira nas configurações (⚙).",
-      RATE_LIMIT: "Limite de pedidos atingido — tente de novo em 1 minuto.",
+      RATE_LIMIT: p === "b3"
+        ? `Limite da brapi atingido — o app tenta de novo sozinho em ${brapiPauseLeft()} min.`
+        : "Limite da Twelve Data atingido — tente de novo em 1 minuto.",
       BRAPI_TOKEN: "A brapi recusou o token — confira nas configurações (⚙).",
     }[e.message] || "Não consegui carregar o histórico.";
   }
-  r.hist[range] = { pts, loading: false, at: err ? Date.now() - HIST_TTL + 60_000 : Date.now(), err };
+  // erro: deixa tentar de novo em 1 min (ou quando a pausa da brapi acabar)
+  const retryAt = Math.max(Date.now() + 60_000, p === "b3" ? brapiPausedUntil : 0);
+  r.hist[range] = { pts, loading: false, at: err ? retryAt - histTtl(range) : Date.now(), err };
+  if (!err) saveHist(symbol, range, pts);           // [NOVO]
   markDirty(symbol);
 }
 
@@ -1231,10 +1295,7 @@ async function runSearch(q) {
         const items = (j.stocks || []).map((s) => ({ symbol: `${s.stock}.SA`, name: s.name, tag: "B3", price: s.close, pct: s.change }));
         brapiSearchCache.set(bkey, { items, at: Date.now() });
         return items.map((x) => ({ ...x }));
-      }).catch((e) => {
-        if (e.message === "RATE_LIMIT") brapiPausedUntil = Date.now() + 120_000;
-        return [];
-      })
+      }).catch(() => []) // [ALTERADO] a pausa no 429 agora é feita pela fila da brapi
     );
   }
   // c) Criptos (lista local)
