@@ -30,7 +30,7 @@ Limites do plano grátis da Finnhub: 60 requisições/minuto e até 50 ativos ao
 
 ## Funcionalidades
 
-- Busca de empresas pelo nome ou código (EUA, B3 e criptos): cada resultado já mostra **preço e variação do dia** e tem um botão **+ Adicionar** (dá pra adicionar várias seguidas). Setas + `Enter` também funcionam. Atalho: tecla `/`.
+- Busca de empresas pelo nome ou código (EUA, B3 e criptos): cada resultado já mostra **preço e variação do dia** e tem um botão **+ Adicionar** (dá pra adicionar várias seguidas). **Clicar no resultado abre o painel de detalhes em modo prévia** (preço ao vivo, gráfico, dados da empresa) para ver antes de adicionar. Setas + `Enter` também abrem a prévia. Atalho: tecla `/`.
 - Cards com preço piscando verde/vermelho a cada negócio, variação do dia e mini-gráfico.
 - Painel de detalhes: gráfico com mira e tooltip, abertura, máxima, mínima, fechamento anterior, valor de mercado, setor e site.
 - Selo de status em cada ativo: **AO VIVO**, **B3 · ~30 MIN**, **AGUARDANDO** ou **ERRO**.

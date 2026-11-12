@@ -707,29 +707,67 @@ function drawSpark(canvas, r) {
 /* =========================================================
    7. PAINEL DE DETALHES
    ========================================================= */
-function openDetail(symbol) {
+// [ALTERADO] Abre o painel de detalhes. Se o ativo NÃO está na lista, abre em
+// modo "prévia": busca os dados, recebe o preço ao vivo enquanto estiver aberto
+// e mostra o botão "Adicionar" em vez de "Remover".
+function openDetail(symbol, name = "") {
+  const inList = state.list.some((i) => i.symbol === symbol);
   state.detail = symbol;
+  state.preview = inList ? null : { symbol, name: name || knownName(symbol) };
   $("#detail-overlay").hidden = false;
   document.body.style.overflow = "hidden";
+
+  const p = providerOf(symbol);
+  if (!inList) {
+    rec(symbol);                                    // cria o registro temporário
+    if (p !== "b3") subscribe(symbol);              // preço ao vivo durante a prévia
+    if (p === "crypto") loadCryptoStats(symbol);
+  }
   updateDetail();
   // Recarrega dados completos ao abrir
-  const p = providerOf(symbol);
   if (p === "b3") loadB3(symbol, true);
   else if (p === "us") loadUS(symbol);
 }
+
 function closeDetail() {
+  // [NOVO] Fechou a prévia sem adicionar: para de acompanhar e apaga os dados temporários
+  const pv = state.preview;
+  if (pv && !state.list.some((i) => i.symbol === pv.symbol)) {
+    if (providerOf(pv.symbol) !== "b3") unsubscribe(pv.symbol);
+    delete state.data[pv.symbol];
+  }
+  state.preview = null;
   state.detail = null;
   $("#detail-overlay").hidden = true;
   document.body.style.overflow = "";
   $("#d-tooltip").hidden = true;
 }
 
+// [NOVO] Botão do rodapé do painel: adiciona (prévia) ou remove (já na lista)
+function detailAction() {
+  const symbol = state.detail;
+  if (!symbol) return;
+  if (state.preview) {
+    addSymbol(symbol, state.preview.name || (state.data[symbol]?.profile?.name ?? ""), { keepOpen: true });
+    state.preview = null;
+    updateDetail();
+  } else {
+    removeSymbol(symbol);
+  }
+}
+
 function updateDetail() {
   const symbol = state.detail;
   if (!symbol) return;
   const r = rec(symbol);
-  const item = state.list.find((i) => i.symbol === symbol) || {};
+  const item = state.list.find((i) => i.symbol === symbol) || state.preview || {};
   const prof = r.profile || {};
+
+  // [NOVO] Botão muda conforme o modo (prévia → Adicionar / na lista → Remover)
+  const btn = $("#d-action");
+  btn.textContent = state.preview ? "+ Adicionar à minha lista" : "Remover da lista";
+  btn.className = state.preview ? "btn btn-primary d-action" : "btn btn-ghost danger d-action";
+  $("#d-preview-tag").hidden = !state.preview;
   const provider = providerOf(symbol);
 
   $("#d-symbol").textContent = displaySymbol(symbol);
@@ -940,12 +978,12 @@ function renderList() {
   state.list.forEach((i) => markDirty(i.symbol));
 }
 
-function addSymbol(symbol, name = "") {
+function addSymbol(symbol, name = "", opts = {}) {
   symbol = symbol.trim().toUpperCase();
   if (!symbol) return;
   if (state.list.some((i) => i.symbol === symbol)) {
     toast(`${displaySymbol(symbol)} já está na sua lista.`);
-    openDetail(symbol);
+    if (!opts.keepOpen) openDetail(symbol);
     return;
   }
   const item = { symbol, name: name || knownName(symbol) };
@@ -953,8 +991,10 @@ function addSymbol(symbol, name = "") {
   save(STORAGE_LIST, state.list);
   $("#watchlist").prepend(createCard(item));
   $("#empty-state").hidden = true;
+  const hadPreview = !!state.data[symbol];        // [NOVO] veio da prévia: aproveita os dados
   rec(symbol);
-  fetchInitial(symbol);
+  if (!hadPreview) fetchInitial(symbol);
+  markDirty(symbol);
   if (providerOf(symbol) !== "b3") subscribe(symbol);
   toast(`${displaySymbol(symbol)} adicionado.`);
 }
@@ -1116,6 +1156,20 @@ function paintQuote(i, seq) {
   if (el) el.innerHTML = resultQuoteHtml(currentResults[i]);
 }
 
+// [NOVO] Abre o painel do resultado para ver antes de adicionar
+function previewResult(i) {
+  const r = currentResults[i];
+  if (!r) return;
+  $("#search-results").hidden = true;
+  $("#search-input").blur();
+  // Mostra na hora o preço que já veio na busca, enquanto o resto carrega
+  if (r.price != null && !state.list.some((x) => x.symbol === r.symbol)) {
+    const d = rec(r.symbol);
+    if (d.price == null) d.price = r.price;
+  }
+  openDetail(r.symbol, r.name);
+}
+
 // [ALTERADO] Adiciona sem fechar a busca — dá pra adicionar várias seguidas
 function pickResult(i) {
   const r = currentResults[i];
@@ -1150,7 +1204,7 @@ function bindSearch() {
       box.querySelector(".active")?.scrollIntoView({ block: "nearest" });
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (activeIdx >= 0 && !box.hidden) pickResult(activeIdx);
+      if (activeIdx >= 0 && !box.hidden) previewResult(activeIdx); // [ALTERADO] Enter abre a prévia
       else if (input.value.trim()) addSymbol(input.value.trim()); // código digitado direto
     } else if (e.key === "Escape") {
       box.hidden = true; input.blur();
@@ -1163,8 +1217,7 @@ function bindSearch() {
     e.preventDefault();                               // não deixa a busca fechar
     const btn = e.target.closest("[data-add]");
     if (btn) { pickResult(+btn.dataset.add); return; }
-    activeIdx = +li.dataset.i;
-    renderResults($("#search-input").value);
+    previewResult(+li.dataset.i);                   // [ALTERADO] clicar na linha abre a prévia
   });
   input.addEventListener("blur", () => setTimeout(() => ($("#search-results").hidden = true), 120));
   input.addEventListener("focus", () => { if (currentResults.length && input.value) $("#search-results").hidden = false; });
@@ -1319,7 +1372,7 @@ function renderChips() {
 function bindGlobal() {
   $("#detail-close").addEventListener("click", closeDetail);
   $("#detail-overlay").addEventListener("click", (e) => { if (e.target.id === "detail-overlay") closeDetail(); });
-  $("#d-remove").addEventListener("click", () => state.detail && removeSymbol(state.detail));
+  $("#d-action").addEventListener("click", detailAction); // [ALTERADO] adicionar ou remover
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "/" && document.activeElement.tagName !== "INPUT") { e.preventDefault(); $("#search-input").focus(); }

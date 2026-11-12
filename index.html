@@ -82,7 +82,10 @@
       <div class="d-head">
         <div id="d-logo" class="logo lg"></div>
         <div>
-          <div id="d-symbol" class="d-symbol">—</div>
+          <div class="d-symbol-row">
+            <span id="d-symbol" class="d-symbol">—</span>
+            <span id="d-preview-tag" class="badge" hidden>PRÉVIA · fora da sua lista</span>
+          </div>
           <div id="d-name" class="muted">—</div>
         </div>
       </div>
@@ -102,7 +105,8 @@
       <dl class="stats" id="d-stats"></dl>
       <div id="d-profile" class="profile small"></div>
 
-      <button id="d-remove" class="btn btn-ghost danger">Remover da lista</button>
+      <!-- [ALTERADO] um botão só: "Adicionar" na prévia, "Remover" quando já está na lista -->
+      <button id="d-action" class="btn btn-ghost danger d-action">Remover da lista</button>
     </aside>
   </div>
 

@@ -399,7 +399,15 @@ input { font: inherit; }
 .btn-primary:hover { filter: brightness(1.08); }
 .btn-ghost { background: transparent; }
 .btn-ghost:hover { border-color: var(--muted); }
-.danger { color: var(--down); margin-top: 22px; width: 100%; }
+.danger { color: var(--down); }
+/* [NOVO] botão do rodapé do painel (Adicionar / Remover) */
+.d-action {
+  margin-top: 22px; width: 100%;
+  position: sticky; bottom: 0;            /* fica sempre visível no rodapé do painel */
+  box-shadow: 0 30px 0 6px var(--surface), 0 -18px 24px 6px var(--surface); /* cobre o que rola por trás */
+}
+.d-action.danger { background: var(--surface); }
+.d-symbol-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 .modal {
   width: min(460px, 100%);
