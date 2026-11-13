@@ -3,7 +3,9 @@
 Painel para acompanhar **ações dos EUA, da B3 e criptomoedas**, com preço ao vivo, carteira, alertas e gráficos.
 Feito em HTML, CSS e JavaScript puro, sem nada pra instalar. Também pode ser **instalado como app** no celular ou no PC.
 
-### ▶ Acesse: **<https://rafael26042007-max.github.io/bolsa-tempo-real/>**
+### ▶ Acesse: **<https://rafael26042007-max.github.io/pregao/>**
+
+> O projeto se chamava `bolsa-tempo-real`. O endereço antigo (`…/bolsa-tempo-real/`) **não funciona mais**: quem instalou o app por ele precisa instalar de novo pelo link acima (e importar o backup).
 
 ![Lista com resumo da carteira](docs/preview-carteira.png)
 
@@ -151,6 +153,15 @@ O app instalado se atualiza sozinho: cada mudança publicada aparece na próxima
 ## Rodar e publicar o código
 
 ### No PC
+Baixe o código:
+```bash
+git clone https://github.com/rafael26042007-max/pregao.git
+```
+Se você já tinha a pasta antiga (`bolsa-tempo-real`), ela continua funcionando: o GitHub redireciona o `git pull`/`git push`. Para deixar o endereço certinho, rode dentro dela:
+```bash
+git remote set-url origin https://github.com/rafael26042007-max/pregao.git
+```
+
 - **Mais simples:** abra o `index.html` com dois cliques. Tudo funciona, menos instalar como app (precisa de `http(s)`).
 - **Pelo IntelliJ / WebStorm** (`localhost:63342`): funciona. Se aparecer **404** no `manifest.json` ou no service worker, vá em *Settings → Build, Execution, Deployment → Debugger* e marque **Allow unsigned requests**. O servidor embutido recusa pedidos "não assinados" pelo token `_ijt` da URL.
 - Os dados ficam separados por endereço: o Pregão do `localhost` e o do `github.io` têm chaves e listas diferentes. Use o backup pra levar de um pro outro.
@@ -164,6 +175,8 @@ O app instalado se atualiza sozinho: cada mudança publicada aparece na próxima
 **Não preencha** o campo *Custom domain* ("Domínio personalizado"): ele é só pra quem comprou um domínio próprio, e colar o link do github.io ali gera um aviso de erro.
 
 Depois disso, **cada `git push` na `main` republica o site sozinho**.
+
+**Renomear o repositório** muda o endereço do site (`…github.io/NOME-NOVO/`) e o antigo para de funcionar. Os dados salvos ficam no endereço antigo, então use o backup.
 
 ---
 
@@ -239,7 +252,7 @@ Pra criar um recurso novo, basta um arquivo em `js/` que use esses ganchos, mais
 
 | Versão | O que entrou |
 |---|---|
-| **2.1** | Botão Baixar app (passo a passo por aparelho e QR code), aba de créditos, guia de primeiros passos, modo demonstração, links "ver minha chave", atalho de importar backup, modo aplicativo, topo ajustado no celular, correções do manifest e do backup |
+| **2.1** | Projeto renomeado para **pregao** (novo endereço), botão Baixar app (passo a passo por aparelho e QR code), aba de créditos, guia de primeiros passos, modo demonstração, links "ver minha chave", atalho de importar backup, modo aplicativo, topo ajustado no celular, correções do manifest e do backup |
 | **2.0** | Alertas, carteira, filtro/ordem/arrastar, indicadores e notícias, tema claro, app instalável, Configurações com abas |
 | **1.x** | Preços ao vivo, busca com prévia, seletor de moeda, gráficos 1D/1M/3M, fila da brapi, conexão compartilhada entre abas |
 
