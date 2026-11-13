@@ -47,7 +47,13 @@
       </label>
 
       <!-- [NOVO] instalar como app (aparece só quando o navegador permite) -->
-      <button id="btn-install" class="pill pill-btn" hidden title="Instalar o Pregão como aplicativo">Instalar app</button>
+      <!-- [ALTERADO] botão de baixar: aparece sempre que o app ainda não está instalado
+           (no celular vira só o ícone). Sem o convite automático do navegador
+           (ex.: iPhone), abre o passo a passo de cada aparelho. -->
+      <button id="btn-install" class="pill pill-btn install-btn" hidden title="Baixar o Pregão como aplicativo">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+        <span class="install-label">Baixar app</span>
+      </button>
 
       <!-- [NOVO] tema claro/escuro -->
       <button id="btn-theme" class="icon-btn" title="Alternar tema claro/escuro" aria-label="Alternar tema">
@@ -441,6 +447,7 @@
                 <tr><td><a href="https://www.jetbrains.com/lp/mono/" target="_blank" rel="noopener">JetBrains Mono</a> (JetBrains)</td><td>Fonte dos números · licença SIL Open Font</td></tr>
                 <tr><td><a href="https://fonts.google.com" target="_blank" rel="noopener">Google Fonts</a></td><td>Entrega das fontes</td></tr>
                 <tr><td><a href="https://pages.github.com" target="_blank" rel="noopener">GitHub Pages</a></td><td>Hospedagem do site</td></tr>
+                <tr><td><a href="https://github.com/kazuhikoarase/qrcode-generator" target="_blank" rel="noopener">qrcode-generator</a> (Kazuhiko Arase)</td><td>QR code do "Baixar app" · licença MIT</td></tr>
                 <tr><td><a href="https://translate.google.com" target="_blank" rel="noopener">Google Tradutor</a></td><td>Link "em português" das notícias</td></tr>
               </tbody>
             </table>
@@ -555,6 +562,33 @@
   <div id="demo-banner" class="demo-banner" hidden>
     <span><b>Modo demonstração:</b> sem chave, só funcionam cripto e as ações de teste da B3 (PETR4, VALE3, MGLU3, ITUB4).</span>
     <button type="button" class="btn btn-sm btn-primary" id="demo-setup">Configurar chaves</button>
+  </div>
+
+  <!-- ===================== [NOVO] BAIXAR O APP (js/tema-pwa.js) ===================== -->
+  <div id="install-overlay" class="overlay center" hidden>
+    <div class="welcome install-modal" role="dialog" aria-labelledby="inst-title">
+      <button type="button" class="icon-btn drawer-close" id="install-close" aria-label="Fechar">✕</button>
+      <img src="icons/icon-192.png" alt="" width="52" height="52" class="wz-logo" />
+      <h3 id="inst-title">Baixar o Pregão</h3>
+      <p class="muted">Ele vira um app de verdade: ícone na tela inicial, abre em tela cheia e se atualiza sozinho. É grátis e não precisa de loja.</p>
+
+      <div id="inst-steps"></div>
+
+      <!-- No computador: QR code para abrir no celular -->
+      <div class="inst-qr" id="inst-qr-box" hidden>
+        <div id="inst-qr" aria-label="QR code do site"></div>
+        <div>
+          <b>Quer no celular?</b>
+          <p class="small muted">Aponte a câmera do celular para o código, abra o link e siga o passo a passo que aparecer lá.</p>
+          <code class="small" id="inst-url"></code>
+        </div>
+      </div>
+
+      <details class="inst-other">
+        <summary>Outros aparelhos e navegadores</summary>
+        <div id="inst-all"></div>
+      </details>
+    </div>
   </div>
 
   <div id="toast" class="toast" hidden></div>

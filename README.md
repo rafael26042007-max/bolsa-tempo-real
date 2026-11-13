@@ -43,9 +43,13 @@ Abra o link acima. Na primeira vez aparece o **guia de primeiros passos**, com t
 
 > As chaves ficam salvas **só no navegador de quem usa**, separadas por navegador e por endereço do site. Quem abre o seu link não vê as suas chaves. Pra usar em outro navegador ou no celular, use o **backup** (veja [Configurações](#configurações)).
 
-### Instalar como app
-- **PC (Chrome/Edge):** botão **Instalar app** no topo do Pregão (ou o ícone na barra de endereço).
-- **Celular (Chrome):** menu **⋮ → Instalar app** / **Adicionar à tela inicial**.
+### Baixar o app (celular e PC)
+Clique em **⤓ Baixar app** no topo. No celular, é o ícone ⤓ ao lado do ☀.
+- **Android (Chrome) e PC (Chrome/Edge):** instala com um clique.
+- **iPhone, Samsung Internet, Firefox:** esses navegadores não instalam com um clique, então o botão mostra o **passo a passo do seu aparelho** (no iPhone: *Compartilhar → Adicionar à Tela de Início*).
+- **No computador**, a janela também mostra um **QR code**: aponte a câmera do celular e o Pregão abre lá.
+
+É grátis e não passa por loja (não precisa de Play Store).
 
 O app instalado se atualiza sozinho: cada mudança publicada aparece na próxima vez que você abre o app. Às vezes precisa abrir duas vezes.
 
@@ -101,7 +105,7 @@ O app instalado se atualiza sozinho: cada mudança publicada aparece na próxima
 
 ### Outros
 - **Tema claro, escuro ou do sistema** (botão ☀/☾ no topo ou em Configurações).
-- **App instalável (PWA)**: ícone na tela inicial, abre sem a barra do navegador e até abre sem internet (os preços voltam quando a conexão volta).
+- **App instalável (PWA)**: botão **Baixar app**, ícone na tela inicial, abre sem a barra do navegador e até abre sem internet (os preços voltam quando a conexão volta).
 - **Modo aplicativo**: no app instalado, bloqueia F12, Ctrl+Shift+I, Ctrl+U e o botão direito. Desligue em ⚙ → Aparência quando for programar. Não é segurança: o DevTools ainda abre pelo menu ⋮ do navegador.
 - **Várias abas** abertas não brigam pela conexão: só uma conecta e repassa os preços para as outras.
 - Lista, carteira, alertas e preferências ficam **salvos no navegador**.
@@ -178,7 +182,8 @@ js/alertas.js         → alertas de preço
 js/carteira.js        → minha carteira e resumo
 js/lista.js           → filtrar, ordenar e arrastar
 js/noticias.js        → indicadores e notícias do painel
-js/tema-pwa.js        → tema claro/escuro, instalação como app e modo aplicativo
+js/tema-pwa.js        → tema claro/escuro, baixar/instalar o app e modo aplicativo
+js/vendor/qrcode.js   → biblioteca de QR code (qrcode-generator, MIT)
 js/configuracoes.js   → janela de configurações com abas
 js/boas-vindas.js     → guia de primeiros passos e modo demonstração
 sw.js                 → service worker (app instalável / abre sem internet)
@@ -234,7 +239,7 @@ Pra criar um recurso novo, basta um arquivo em `js/` que use esses ganchos, mais
 
 | Versão | O que entrou |
 |---|---|
-| **2.1** | Aba de créditos, guia de primeiros passos, modo demonstração, links "ver minha chave", atalho de importar backup, modo aplicativo, topo ajustado no celular, correções do manifest e do backup |
+| **2.1** | Botão Baixar app (passo a passo por aparelho e QR code), aba de créditos, guia de primeiros passos, modo demonstração, links "ver minha chave", atalho de importar backup, modo aplicativo, topo ajustado no celular, correções do manifest e do backup |
 | **2.0** | Alertas, carteira, filtro/ordem/arrastar, indicadores e notícias, tema claro, app instalável, Configurações com abas |
 | **1.x** | Preços ao vivo, busca com prévia, seletor de moeda, gráficos 1D/1M/3M, fila da brapi, conexão compartilhada entre abas |
 
@@ -250,6 +255,7 @@ Pra criar um recurso novo, basta um arquivo em `js/` que use esses ganchos, mais
 **Dados:** [Finnhub](https://finnhub.io) · [brapi](https://brapi.dev) · [Twelve Data](https://twelvedata.com) · [ExchangeRate-API](https://www.exchangerate-api.com) e [Frankfurter](https://frankfurter.dev) · [Binance](https://www.binance.com)
 **Fontes:** [Inter](https://rsms.me/inter/) (Rasmus Andersson) e [JetBrains Mono](https://www.jetbrains.com/lp/mono/), licença SIL Open Font, via Google Fonts
 **Hospedagem:** [GitHub Pages](https://pages.github.com)
+**QR code:** [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) (Kazuhiko Arase, licença MIT)
 
 Marcas e logos das empresas pertencem aos seus donos. © 2026 Rafael.
 

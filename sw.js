@@ -8,7 +8,7 @@
    preço velho seria pior do que nenhum preço.
    Mude CACHE ao alterar esta lista de arquivos.
    ========================================================= */
-const CACHE = "pregao-v8"; // [ALTERADO] mude o número sempre que a lista de arquivos mudar
+const CACHE = "pregao-v9"; // [ALTERADO] mude o número sempre que a lista de arquivos mudar
 const APP_FILES = [
   "./",
   "index.html",
@@ -21,6 +21,7 @@ const APP_FILES = [
   "js/tema-pwa.js",
   "js/configuracoes.js",
   "js/boas-vindas.js",
+  "js/vendor/qrcode.js",
   "manifest.json",
   "icons/icon-192.png",
   "icons/icon-512.png",
