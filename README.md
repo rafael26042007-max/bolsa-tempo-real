@@ -111,6 +111,7 @@ O app instalado se atualiza sozinho: cada mudança publicada aparece na próxima
 - **Tema claro, escuro ou do sistema** (botão ☀/☾ no topo ou em Configurações).
 - **App instalável (PWA)**: botão **Baixar app**, ícone na tela inicial, abre sem a barra do navegador e até abre sem internet (os preços voltam quando a conexão volta).
 - **Modo aplicativo**: no app instalado, bloqueia F12, Ctrl+Shift+I, Ctrl+U e o botão direito. Desligue em ⚙ → Aparência quando for programar. Não é segurança: o DevTools ainda abre pelo menu ⋮ do navegador.
+- **Novidades a cada versão**: quando sai uma atualização, aparece o aviso **"Nova versão pronta · Atualizar"** e, depois, uma janela com o que mudou (só o que importa pra quem usa). O histórico fica em ⚙ → Sobre → **Ver novidades**.
 - **Várias abas** abertas não brigam pela conexão: só uma conecta e repassa os preços para as outras.
 - Lista, carteira, alertas e preferências ficam **salvos no navegador**.
 
@@ -170,13 +171,14 @@ git remote set-url origin https://github.com/rafael26042007-max/pregao.git
 
 ### Publicar no GitHub Pages
 1. No repositório: **Settings → Pages**. Se o GitHub estiver traduzido: **Configurações → Páginas**.
-2. **Source:** *Deploy from a branch* ("Implantar a partir de uma ramificação").
-3. **Branch** ("Filial"): troque **None** ("Nenhum") por **main**, pasta **/ (root)** ("/ (raiz)"), e clique em **Save** ("Salvar").
-4. Em 1 a 3 minutos aparece *"Your site is live at…"* ("Seu site está online em…"). A aba **Actions** mostra o andamento ("pages build and deployment").
+2. Em **Build and deployment → Source** ("Fonte"), escolha **GitHub Actions**.
+3. Pronto: a cada `git push` na `main`, o arquivo `.github/workflows/publicar.yml` **roda os testes primeiro** e só publica se todos passarem. A aba **Actions** mostra o andamento ("Testar e publicar"). Em 1 a 3 minutos o site está atualizado.
+
+> Se o *Source* estiver em *Deploy from a branch*, o site ainda é publicado, mas **sem esperar os testes**: um erro poderia ir direto pro ar.
 
 **Não preencha** o campo *Custom domain* ("Domínio personalizado"): ele é só pra quem comprou um domínio próprio, e colar o link do github.io ali gera um aviso de erro.
 
-Depois disso, **cada `git push` na `main` republica o site sozinho**.
+Se um teste falhar, o site **continua na versão anterior** e o GitHub manda um e-mail avisando. Veja o erro em **Actions** → a execução com ❌.
 
 **Renomear o repositório** muda o endereço do site (`…github.io/NOME-NOVO/`) e o antigo para de funcionar. Os dados salvos ficam no endereço antigo, então use o backup.
 
@@ -293,6 +295,7 @@ Pra criar um recurso novo, basta um arquivo em `js/` que use esses ganchos, mais
 - **B3 com atraso de ~30 min** no plano grátis da brapi. O gráfico do dia (1D) da B3 só funciona nas ações de teste (PETR4, VALE3, MGLU3, ITUB4). As outras mostram 1M/3M.
 - Sem a chave da Twelve Data, o gráfico 1D das ações dos EUA se forma só com os negócios ao vivo. Com o mercado fechado, ele fica vazio.
 - **1 conexão ao vivo por chave da Finnhub:** com o Pregão aberto no PC e no celular com a mesma chave, um deles fica em "A CADA 15 S". Várias abas no mesmo navegador funcionam normalmente.
+- **Listas grandes de ações dos EUA** atualizam mais devagar fora da conexão ao vivo: o plano grátis da Finnhub permite 60 pedidos por minuto, e o Pregão usa no máximo 55 pra nunca ser bloqueado.
 - Ações de outras bolsas (Europa, Ásia) aparecem na busca, mas a cotação delas é paga na Finnhub.
 - As notícias vêm em inglês (há o link de tradução). Não há notícias da B3 na fonte gratuita.
 - Arrastar os cards funciona com o mouse. No celular, use a ordenação pelo menu.
