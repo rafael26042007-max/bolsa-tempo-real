@@ -1,0 +1,4 @@
+# dependências e resultados dos testes (não vão pro GitHub)
+node_modules/
+test-results/
+playwright-report/

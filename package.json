@@ -1,0 +1,24 @@
+{
+  "name": "pregao",
+  "version": "2.2.0",
+  "description": "Pregão — bolsa em tempo real (testes automáticos)",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rafael26042007-max/pregao.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rafael26042007-max/pregao/issues"
+  },
+  "homepage": "https://github.com/rafael26042007-max/pregao#readme",
+  "devDependencies": {
+    "@playwright/test": "1.56"
+  },
+  "private": true
+}

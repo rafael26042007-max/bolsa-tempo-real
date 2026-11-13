@@ -131,6 +131,9 @@ function save(key, value) {
 }
 const $ = (sel) => document.querySelector(sel);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+// [NOVO] Link vindo de API: só aceita http(s). Bloqueia "javascript:…" e afins,
+// que o esc() sozinho não impede (ele protege texto, não o destino do link).
+const safeUrl = (u) => (/^https?:\/\//i.test(String(u ?? "").trim()) ? String(u).trim() : "#");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Qual fonte usar para cada símbolo
@@ -238,13 +241,48 @@ function pushTick(r, t, p) {
 /* =========================================================
    4. CHAMADAS DE API
    ========================================================= */
-async function finnhub(path, params = {}) {
+// [CORRIGIDO] Limite da Finnhub: 60 pedidos/minuto no plano grátis.
+// Antes, 9 lugares do código chamavam a Finnhub direto, sem controle, e com
+// muitas ações dos EUA o app passava do limite (medido: 61–75/min com 15 ações).
+// Agora todo pedido passa por uma "janela" dos últimos 60 s:
+//   • no máximo FINNHUB_MAX (55) pedidos por minuto, com folga;
+//   • tarefas de fundo (atualizações automáticas) usam no máximo FINNHUB_BG (40),
+//     para sempre sobrar espaço para o que você clica (busca, painel…);
+//   • quem passa do limite ESPERA a vez, em vez de levar erro;
+//   • se mesmo assim vier 429, tudo pausa pelo tempo que a Finnhub pedir.
+const FINNHUB_MAX = 55;
+const FINNHUB_BG = 40;
+const finnhubLog = [];          // horários dos pedidos do último minuto
+let finnhubPausedUntil = 0;
+
+async function finnhubSlot(background) {
+  const limit = background ? FINNHUB_BG : FINNHUB_MAX;
+  for (;;) {
+    const now = Date.now();
+    if (now < finnhubPausedUntil) {
+      if (!background) throw new Error("RATE_LIMIT");  // o que você clicou não fica travado
+      await sleep(finnhubPausedUntil - now);
+      continue;
+    }
+    while (finnhubLog.length && now - finnhubLog[0] >= 60_000) finnhubLog.shift();
+    if (finnhubLog.length < limit) { finnhubLog.push(now); return; }
+    await sleep(finnhubLog[finnhubLog.length - limit] + 60_000 - now + 25); // espera vagar
+  }
+}
+
+// opts.background = true para atualizações automáticas (cedem a vez)
+async function finnhub(path, params = {}, opts = {}) {
   if (!state.config.finnhubKey) throw new Error("NO_KEY");
+  await finnhubSlot(!!opts.background);
   const qs = new URLSearchParams({ ...params, token: state.config.finnhubKey });
   const res = await fetch(`${FINNHUB_REST}${path}?${qs}`);
   if (res.status === 401) throw new Error("BAD_KEY");
   if (res.status === 403) throw new Error("NO_ACCESS");
-  if (res.status === 429) throw new Error("RATE_LIMIT");
+  if (res.status === 429) {
+    const wait = parseInt(res.headers.get("Retry-After"), 10) || 60;
+    finnhubPausedUntil = Date.now() + wait * 1000;
+    throw new Error("RATE_LIMIT");
+  }
   if (!res.ok) throw new Error(`HTTP_${res.status}`);
   return res.json();
 }
@@ -300,10 +338,10 @@ async function runBrapiQueue() {
 }
 
 /* ---------- 4.1 Ações dos EUA (Finnhub) ---------- */
-async function loadUS(symbol) {
+async function loadUS(symbol, background = false) { // [ALTERADO] + background
   const r = rec(symbol);
   try {
-    const q = await finnhub("/quote", { symbol });
+    const q = await finnhub("/quote", { symbol }, { background });
     if (!q || (q.c === 0 && q.t === 0)) {
       r.status = "err"; r.note = "Sem dados para este código";
     } else {
@@ -313,6 +351,8 @@ async function loadUS(symbol) {
       if (r.status !== "live") r.status = "ready";
     }
   } catch (e) {
+    // [CORRIGIDO] limite atingido numa atualização automática: mantém o último preço
+    if (e.message === "RATE_LIMIT" && r.price != null) { markDirty(symbol); return; }
     r.status = "err";
     r.note = e.message === "NO_ACCESS" ? "Fora do plano grátis da Finnhub"
            : e.message === "NO_KEY" ? "Configure a chave da Finnhub"
@@ -325,7 +365,7 @@ async function loadUS(symbol) {
   // Perfil da empresa (logo, setor, valor de mercado) — só uma vez
   if (!r.profile && state.config.finnhubKey) {
     try {
-      const p = await finnhub("/stock/profile2", { symbol });
+      const p = await finnhub("/stock/profile2", { symbol }, { background });
       if (p && p.name) {
         r.profile = {
           name: p.name, logo: p.logo, industry: p.finnhubIndustry, web: p.weburl,
@@ -735,13 +775,18 @@ function bindChannel() {
 }
 
 /* ---------- 5.1 [NOVO] Plano B: atualização pelo REST quando o ao vivo cai ---------- */
+let pollRunning = false; // [CORRIGIDO] impede que um ciclo comece antes do anterior acabar
 async function pollFallback() {
-  if (isLive() || !state.config.finnhubKey || document.hidden) return;
+  if (pollRunning || isLive() || !state.config.finnhubKey || document.hidden) return;
+  pollRunning = true;
+  try { await pollFallbackRun(); } finally { pollRunning = false; }
+}
+async function pollFallbackRun() {
   const syms = state.list.map((i) => i.symbol).filter((s) => providerOf(s) === "us");
   for (const symbol of syms) {
     if (isLive()) return;
     try {
-      const q = await finnhub("/quote", { symbol });
+      const q = await finnhub("/quote", { symbol }, { background: true });
       if (q && q.c && state.data[symbol]) {
         const r = state.data[symbol];
         if (q.c !== r.price) onTrade(symbol, q.c, q.t ? q.t * 1000 : Date.now());
@@ -749,7 +794,7 @@ async function pollFallback() {
         markDirty(symbol);
       }
     } catch { /* tenta no próximo ciclo */ }
-    await sleep(1200); // respeita o limite de 60 req/min
+    // (a espera entre pedidos agora é feita pela janela da Finnhub)
   }
 }
 
@@ -1058,7 +1103,7 @@ function updateDetail() {
     ["Setor", prof.industry], ["Bolsa", prof.exchange], ["País", prof.country], ["IPO", prof.ipo],
   ].filter(([, v]) => v);
   let html = rows.map(([k, v]) => `<div class="row"><span>${k}</span><span>${esc(v)}</span></div>`).join("");
-  if (prof.web) html += `<div class="row"><span>Site</span><a href="${esc(prof.web)}" target="_blank" rel="noopener">${esc(prof.web.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""))}</a></div>`;
+  if (prof.web && safeUrl(prof.web) !== "#") html += `<div class="row"><span>Site</span><a href="${esc(safeUrl(prof.web))}" target="_blank" rel="noopener">${esc(prof.web.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""))}</a></div>`;
   $("#d-profile").innerHTML = html;
 
   drawDetailChart();
@@ -1514,7 +1559,7 @@ async function loadMarketStatus() {
   const el = $("#market-status");
   if (!state.config.finnhubKey) { el.textContent = "Mercado: —"; return; }
   try {
-    const s = await finnhub("/stock/market-status", { exchange: "US" });
+    const s = await finnhub("/stock/market-status", { exchange: "US" }, { background: true });
     const label = s.isOpen
       ? (s.session === "pre-market" ? "Pré-mercado" : s.session === "post-market" ? "After-market" : "Aberto")
       : (s.holiday ? `Feriado (${s.holiday})` : "Fechado");
@@ -1578,9 +1623,14 @@ function startTimers() {
 
   // Ações dos EUA: o WS dá o preço, o REST atualiza máx/mín/fechamento.
   // Respeita o limite de 60 req/min: espaça de acordo com o tamanho da lista.
+  let usRunning = false; // [CORRIGIDO] sem ciclos sobrepostos
   const usLoop = async () => {
-    const us = state.list.filter((i) => providerOf(i.symbol) === "us");
-    for (const i of us) { await loadUS(i.symbol); await sleep(1500); }
+    if (usRunning || document.hidden) return;
+    usRunning = true;
+    try {
+      const us = state.list.filter((i) => providerOf(i.symbol) === "us");
+      for (const i of us) await loadUS(i.symbol, true); // fundo: cede a vez
+    } finally { usRunning = false; }
   };
   state.timers.push(setInterval(usLoop, 90_000));
 

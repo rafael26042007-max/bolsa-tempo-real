@@ -15,7 +15,7 @@
    ========================================================= */
 "use strict";
 
-const APP_VERSION = "2.1 · novembro de 2026";
+// [ALTERADO] APP_VERSION agora vem do histórico em js/novidades.js (fonte única da versão)
 const STORAGE_PREFS = "pregao.prefs";
 
 function savePrefs() { save(STORAGE_PREFS, state.prefs); }

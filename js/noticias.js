@@ -101,7 +101,7 @@ async function getNews(symbol) {
       ? await finnhub("/news", { category: "crypto" })
       : await finnhub("/company-news", { symbol, from: isoDay(Date.now() - 7 * 864e5), to: isoDay(Date.now()) });
     const items = (raw || [])
-      .filter((n) => n.headline && n.url)
+      .filter((n) => n.headline && safeUrl(n.url) !== "#") // [CORRIGIDO] só links http(s)
       .sort((a, b) => b.datetime - a.datetime)
       .slice(0, 6)
       .map((n) => ({ title: n.headline, url: n.url, source: n.source, at: n.datetime * 1000 }));
@@ -137,7 +137,7 @@ async function renderNews(symbol) {
     <h4>${p === "crypto" ? "Notícias de cripto" : "Notícias"} <span class="muted small" style="text-transform:none;letter-spacing:0;font-weight:400">em inglês</span></h4>
     <ul class="news-list">${items.map((n) => `
       <li>
-        <a href="${esc(n.url)}" target="_blank" rel="noopener">${esc(n.title)}</a>
+        <a href="${esc(safeUrl(n.url))}" target="_blank" rel="noopener">${esc(n.title)}</a>
         <div class="n-meta">${esc(n.source || "")} · ${timeAgo(n.at)} · <a class="link-btn" style="display:inline;padding:0" href="${tr(n.url)}" target="_blank" rel="noopener">em português</a></div>
       </li>`).join("")}
     </ul>`;

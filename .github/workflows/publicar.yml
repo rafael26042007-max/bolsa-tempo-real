@@ -1,0 +1,72 @@
+# =========================================================
+# TESTAR E PUBLICAR
+# A cada git push na main:
+#   1. roda os testes automáticos (pasta tests/)
+#   2. SÓ SE TODOS PASSAREM, publica o site no GitHub Pages
+# Se algum teste falhar, o site continua na versão anterior e
+# o GitHub avisa por e-mail. Acompanhe na aba "Actions".
+# (Para funcionar: Settings → Pages → Source: "GitHub Actions")
+# =========================================================
+name: Testar e publicar
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:          # botão "Run workflow" na aba Actions
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:                  # um push novo cancela a publicação antiga que ainda está rodando
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  testar:
+    name: Testes automáticos
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test
+      - name: Guardar relatório se falhar
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-dos-testes
+          path: test-results/
+          retention-days: 7
+
+  publicar:
+    name: Publicar no GitHub Pages
+    needs: testar               # ← só roda se os testes passarem
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Separar só os arquivos do site
+        run: |
+          mkdir _site
+          rsync -a ./ _site/ \
+            --exclude .git --exclude .github --exclude node_modules \
+            --exclude tests --exclude test-results --exclude playwright-report \
+            --exclude 'package*.json' --exclude playwright.config.js --exclude docs \
+            --exclude _site
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4

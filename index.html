@@ -410,6 +410,7 @@
             <div class="about-head">
               <img src="icons/icon-192.png" alt="" width="44" height="44" />
               <div><b>Pregão</b><div class="muted small" id="set-version">versão —</div></div>
+              <button type="button" class="btn btn-sm" id="show-news" style="margin-left:auto">Ver novidades</button> <!-- [NOVO] -->
             </div>
             <h5 class="set-sub">De onde vêm os dados</h5>
             <table class="set-table">
@@ -631,6 +632,26 @@
     </div>
   </div>
 
+  <!-- ===================== [NOVO] NOVIDADES DA VERSÃO (js/novidades.js) ===================== -->
+  <div id="news-overlay" class="overlay center" hidden>
+    <div class="welcome news-modal" role="dialog" aria-labelledby="news-title">
+      <button type="button" class="icon-btn drawer-close" id="news-close" aria-label="Fechar">✕</button>
+      <span class="wz-kicker">Pregão atualizado</span>
+      <h3 id="news-title">O que há de novo</h3>
+      <div id="news-body"></div>
+      <div class="wz-actions"><button type="button" class="btn btn-primary" id="news-ok">Entendi</button></div>
+    </div>
+  </div>
+
+  <!-- [NOVO] faixa quando uma versão nova é publicada com o app aberto -->
+  <div id="update-banner" class="update-banner" hidden role="status">
+    <span>✨ <b>Nova versão do Pregão pronta.</b> Atualize para ver as novidades.</span>
+    <div class="row-actions">
+      <button type="button" class="btn btn-ghost btn-sm" id="update-later">Depois</button>
+      <button type="button" class="btn btn-primary btn-sm" id="update-reload">Atualizar</button>
+    </div>
+  </div>
+
   <div id="toast" class="toast" hidden></div>
 
   <script src="app.js"></script>
@@ -640,6 +661,7 @@
   <script src="js/lista.js"></script>
   <script src="js/noticias.js"></script>
   <script src="js/tema-pwa.js"></script>
+  <script src="js/novidades.js"></script> <!-- [NOVO] precisa vir antes de configuracoes.js (define APP_VERSION) -->
   <script src="js/configuracoes.js"></script>
   <script src="js/boas-vindas.js"></script>
 </body>

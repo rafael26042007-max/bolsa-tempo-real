@@ -17,6 +17,8 @@ Feito em HTML, CSS e JavaScript puro, sem nada pra instalar. Também pode ser **
 - [De onde vêm os dados](#de-onde-vêm-os-dados)
 - [Configurações](#configurações)
 - [Rodar e publicar o código](#rodar-e-publicar-o-código)
+- [Lançar uma versão nova](#lançar-uma-versão-nova)
+- [Testes automáticos](#testes-automáticos)
 - [Estrutura do código](#estrutura-do-código)
 - [Limitações conhecidas](#limitações-conhecidas)
 - [Histórico de versões](#histórico-de-versões)
@@ -180,6 +182,49 @@ Depois disso, **cada `git push` na `main` republica o site sozinho**.
 
 ---
 
+## Lançar uma versão nova
+
+1. Faça as mudanças no código.
+2. Em `js/novidades.js`, adicione a versão **no topo** do `CHANGELOG`, com o que mudou **para quem usa** (sem termos técnicos).
+3. Em `sw.js`, troque `CACHE` para `"pregao-v"` + a mesma versão (ex.: `pregao-v2.3`).
+4. `git push`.
+
+O resto é automático:
+```
+git push → testes no GitHub → passaram? → site publicado (1–3 min)
+                                  ↓ não
+                       site continua na versão anterior + e-mail avisando
+```
+Quem estiver com o app aberto vê **"Nova versão do Pregão pronta · Atualizar"**. Quem abrir depois vê a janela **"O que há de novo"**, só com as mudanças desde a última visita. Pessoas novas não veem essa janela (o guia de primeiros passos já apresenta tudo).
+
+> **Uma vez só:** em *Settings → Pages → Build and deployment → Source*, escolha **GitHub Actions**. Sem isso, o GitHub continua publicando direto da branch, sem esperar os testes.
+
+---
+
+## Testes automáticos
+
+Os testes ficam em `tests/` e usam [Playwright](https://playwright.dev). Eles abrem o Pregão num navegador de verdade, com **dublês das APIs** (`tests/dubles.js`), então não precisam de internet nem de chaves.
+
+| O que é testado | |
+|---|---|
+| Abre sem erros, preço ao vivo, busca com prévia, moeda, alerta, carteira | o básico do usuário |
+| brapi nunca recebe 2 pedidos ao mesmo tempo · Finnhub fica abaixo de 60/min com 15 ações | limites das APIs |
+| Links `javascript:` vindos das APIs são bloqueados | segurança |
+| Guia sem chave, importar backup sem apagar chaves, janela de novidades | primeiros passos |
+| Versão do `sw.js` = versão do `CHANGELOG` · todos os scripts no cache do app | não esquecer na hora de lançar |
+| Celular de 360 px sem nada sobrando para os lados | tela |
+
+Rodar no PC:
+```bash
+npm install
+npx playwright install chromium
+npm test            # ou: npm run test:ui  (abre uma janela para ver cada teste rodando)
+```
+
+No GitHub, eles rodam sozinhos a cada `git push` (`.github/workflows/publicar.yml`).
+
+---
+
 ## Estrutura do código
 
 ```
@@ -199,11 +244,15 @@ js/tema-pwa.js        → tema claro/escuro, baixar/instalar o app e modo aplica
 js/vendor/qrcode.js   → biblioteca de QR code (qrcode-generator, MIT)
 js/configuracoes.js   → janela de configurações com abas
 js/boas-vindas.js     → guia de primeiros passos e modo demonstração
+js/novidades.js       → histórico de versões (CHANGELOG) e janela "O que há de novo"
 sw.js                 → service worker (app instalável / abre sem internet)
 sitemap.xml           → mapa do site para o Google
 manifest.json         → nome, cores e ícones do app
 icons/                → ícones do app e og-image.png (prévia do link nas redes sociais)
 docs/                 → imagens deste README
+tests/                → testes automáticos (Playwright) e dublês das APIs
+.github/workflows/    → testar e publicar a cada git push
+package.json          → só para os testes (o site não precisa de npm)
 ```
 
 ### Como os recursos se ligam ao núcleo (ganchos)
@@ -219,6 +268,8 @@ Os arquivos da pasta `js/` não mexem no `app.js`. Eles se **inscrevem em evento
 | `needKey` | O app abriu sem a chave da Finnhub (o guia usa isso) |
 | `keysChanged` | As chaves foram salvas |
 
+> Recurso novo? Também adicione o arquivo na lista do `sw.js`. Se esquecer, o teste automático avisa.
+
 Pra criar um recurso novo, basta um arquivo em `js/` que use esses ganchos, mais um `<script>` no `index.html` e o nome do arquivo na lista do `sw.js` (aumentando o número do `CACHE`).
 
 ### Dados salvos no navegador (localStorage)
@@ -232,6 +283,7 @@ Pra criar um recurso novo, basta um arquivo em `js/` que use esses ganchos, mais
 | `pregao.listview` | Filtro e ordenação da lista |
 | `pregao.theme` / `pregao.currency` | Tema e moeda |
 | `pregao.demo` | Escolheu o modo demonstração |
+| `pregao.seenVersion` | Última versão cujas novidades a pessoa viu |
 | `pregao.hist` / `pregao.b3cache` | Cache de gráficos e últimas cotações da B3 |
 
 ---
@@ -253,6 +305,7 @@ Pra criar um recurso novo, basta um arquivo em `js/` que use esses ganchos, mais
 
 | Versão | O que entrou |
 |---|---|
+| **2.2** | Janela "O que há de novo" e aviso de versão nova · limite de pedidos da Finnhub (estável com listas grandes) · links das APIs mais seguros · testes automáticos + publicar só se passarem |
 | **2.1** | Projeto renomeado para **pregao** (novo endereço), botão Baixar app (passo a passo por aparelho e QR code), aba de créditos, guia de primeiros passos, modo demonstração, links "ver minha chave", atalho de importar backup, modo aplicativo, topo ajustado no celular, correções do manifest e do backup |
 | **2.0** | Alertas, carteira, filtro/ordem/arrastar, indicadores e notícias, tema claro, app instalável, Configurações com abas |
 | **1.x** | Preços ao vivo, busca com prévia, seletor de moeda, gráficos 1D/1M/3M, fila da brapi, conexão compartilhada entre abas |
