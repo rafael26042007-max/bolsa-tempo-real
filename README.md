@@ -200,8 +200,9 @@ js/vendor/qrcode.js   → biblioteca de QR code (qrcode-generator, MIT)
 js/configuracoes.js   → janela de configurações com abas
 js/boas-vindas.js     → guia de primeiros passos e modo demonstração
 sw.js                 → service worker (app instalável / abre sem internet)
+sitemap.xml           → mapa do site para o Google
 manifest.json         → nome, cores e ícones do app
-icons/                → ícones do app
+icons/                → ícones do app e og-image.png (prévia do link nas redes sociais)
 docs/                 → imagens deste README
 ```
 
