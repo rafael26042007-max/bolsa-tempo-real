@@ -157,7 +157,7 @@ on("init", () => {
   const msg = takeImportMsg();
   if (msg === "with-keys") toast("Backup importado com as chaves. Tudo pronto!", 5000);
   if (msg === "kept-keys") toast("Backup importado. Ele não tinha chaves, então mantive as que já estavam aqui.", 7000);
-  if (msg === "no-keys") state.importedWithoutKeys = true;
+  if (msg === "no-keys" || msg === "empty-keys") state.importedWithoutKeys = msg; // [ALTERADO]
   bindWizard();
   setInterval(demoCryptoTick, 15_000);
   updateDemoBanner();
@@ -168,9 +168,13 @@ on("needKey", () => {
   // [NOVO] veio de um backup sem chaves: explica e já abre direto no passo da chave
   if (state.importedWithoutKeys) {
     openWizard(1);
-    setWzStatus("finnhub", null,
-      "Backup importado: sua lista, carteira e alertas chegaram ✓. Mas ele não tinha as chaves " +
-      "(a opção \"incluir as chaves de API\" estava desmarcada). Cole a chave aqui, ou exporte o backup de novo marcando essa opção.");
+    // [ALTERADO] explica qual dos dois casos aconteceu
+    setWzStatus("finnhub", null, state.importedWithoutKeys === "empty-keys"
+      ? "Backup importado: sua lista, carteira e alertas chegaram ✓. As chaves estavam incluídas, mas VAZIAS: " +
+        "esse backup foi feito num navegador/endereço onde a chave nunca foi colada. Cole a chave aqui " +
+        "(o link \"ver minha chave\" mostra ela no site da Finnhub)."
+      : "Backup importado: sua lista, carteira e alertas chegaram ✓. Mas ele não tinha as chaves " +
+        "(a opção \"incluir as chaves de API\" estava desmarcada). Cole a chave aqui, ou exporte o backup de novo marcando essa opção.");
     return;
   }
   if (load(STORAGE_DEMO, false)) updateDemoBanner();

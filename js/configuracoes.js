@@ -251,7 +251,9 @@ function bindDataTab() {
       if (!backupHasKeys && currentKeys) localStorage.setItem(KEYS_KEY, currentKeys); // …menos as chaves atuais
       // [NOVO] recado para mostrar depois de recarregar
       const keysNow = backupHasKeys || (currentKeys && JSON.parse(currentKeys).finnhubKey);
-      try { sessionStorage.setItem("pregao.importMsg", backupHasKeys ? "with-keys" : keysNow ? "kept-keys" : "no-keys"); } catch { /* ignorado */ }
+      // [ALTERADO] diferencia "backup sem a parte das chaves" de "chaves que já estavam vazias"
+      const emptyKeys = !!json.data[KEYS_KEY] && !backupHasKeys;
+      try { sessionStorage.setItem("pregao.importMsg", backupHasKeys ? "with-keys" : keysNow ? "kept-keys" : emptyKeys ? "empty-keys" : "no-keys"); } catch { /* ignorado */ }
       toast("Backup restaurado. Recarregando…");
       setTimeout(() => location.reload(), 900);
     } catch {
