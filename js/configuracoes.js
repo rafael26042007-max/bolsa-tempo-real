@@ -243,8 +243,15 @@ function bindDataTab() {
       const json = JSON.parse(await file.text());
       if (json.app !== "pregao" || !json.data) throw new Error();
       window.__pregaoFrozen = true;            // [CORRIGIDO] trava os salvamentos da página antiga
-      pregaoKeys().forEach((k) => localStorage.removeItem(k)); // backup substitui tudo
+      // [CORRIGIDO] backup sem chaves não pode apagar as chaves que já estão neste aparelho
+      const backupHasKeys = !!(json.data[KEYS_KEY] && json.data[KEYS_KEY].finnhubKey);
+      const currentKeys = localStorage.getItem(KEYS_KEY);
+      pregaoKeys().forEach((k) => localStorage.removeItem(k)); // backup substitui tudo…
       for (const [k, v] of Object.entries(json.data)) if (k.startsWith("pregao.")) localStorage.setItem(k, JSON.stringify(v));
+      if (!backupHasKeys && currentKeys) localStorage.setItem(KEYS_KEY, currentKeys); // …menos as chaves atuais
+      // [NOVO] recado para mostrar depois de recarregar
+      const keysNow = backupHasKeys || (currentKeys && JSON.parse(currentKeys).finnhubKey);
+      try { sessionStorage.setItem("pregao.importMsg", backupHasKeys ? "with-keys" : keysNow ? "kept-keys" : "no-keys"); } catch { /* ignorado */ }
       toast("Backup restaurado. Recarregando…");
       setTimeout(() => location.reload(), 900);
     } catch {

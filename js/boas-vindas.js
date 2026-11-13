@@ -144,7 +144,20 @@ function bindWizard() {
 }
 
 /* ---------- 4. Ligações com o app ---------- */
+// [NOVO] Recado depois de importar um backup (a página recarrega no meio)
+function takeImportMsg() {
+  try {
+    const m = sessionStorage.getItem("pregao.importMsg");
+    sessionStorage.removeItem("pregao.importMsg");
+    return m;
+  } catch { return null; }
+}
+
 on("init", () => {
+  const msg = takeImportMsg();
+  if (msg === "with-keys") toast("Backup importado com as chaves. Tudo pronto!", 5000);
+  if (msg === "kept-keys") toast("Backup importado. Ele não tinha chaves, então mantive as que já estavam aqui.", 7000);
+  if (msg === "no-keys") state.importedWithoutKeys = true;
   bindWizard();
   setInterval(demoCryptoTick, 15_000);
   updateDemoBanner();
@@ -152,6 +165,14 @@ on("init", () => {
 });
 // Sem chave: abre o guia (ou, se já escolheu o modo demonstração, só mostra a faixa)
 on("needKey", () => {
+  // [NOVO] veio de um backup sem chaves: explica e já abre direto no passo da chave
+  if (state.importedWithoutKeys) {
+    openWizard(1);
+    setWzStatus("finnhub", null,
+      "Backup importado: sua lista, carteira e alertas chegaram ✓. Mas ele não tinha as chaves " +
+      "(a opção \"incluir as chaves de API\" estava desmarcada). Cole a chave aqui, ou exporte o backup de novo marcando essa opção.");
+    return;
+  }
   if (load(STORAGE_DEMO, false)) updateDemoBanner();
   else openWizard(0);
 });
