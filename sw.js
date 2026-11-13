@@ -8,7 +8,7 @@
    preço velho seria pior do que nenhum preço.
    Mude CACHE ao alterar esta lista de arquivos.
    ========================================================= */
-const CACHE = "pregao-v11"; // [ALTERADO] mude o número sempre que a lista de arquivos mudar
+const CACHE = "pregao-v12"; // [ALTERADO] mude o número sempre que a lista de arquivos mudar
 const APP_FILES = [
   "./",
   "index.html",
@@ -43,8 +43,15 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET" || url.origin !== location.origin) return; // APIs: direto na rede
+  // [CORRIGIDO] cache: "no-cache" = sempre pergunta ao servidor se o arquivo mudou.
+  // Sem isso, o GitHub Pages deixava o navegador usar a versão velha por até 10 min
+  // depois de cada publicação. (Navegação de página não aceita esse ajuste no
+  // pedido original, então ela é refeita pelo endereço.)
+  const fresh = e.request.mode === "navigate"
+    ? fetch(e.request.url, { cache: "no-cache", credentials: "include" })
+    : fetch(e.request, { cache: "no-cache" });
   e.respondWith(
-    fetch(e.request)
+    fresh
       .then((res) => {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(e.request, copy));
