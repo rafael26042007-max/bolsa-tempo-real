@@ -234,6 +234,8 @@ function bindDataTab() {
     try {
       const json = JSON.parse(await file.text());
       if (json.app !== "pregao" || !json.data) throw new Error();
+      window.__pregaoFrozen = true;            // [CORRIGIDO] trava os salvamentos da página antiga
+      pregaoKeys().forEach((k) => localStorage.removeItem(k)); // backup substitui tudo
       for (const [k, v] of Object.entries(json.data)) if (k.startsWith("pregao.")) localStorage.setItem(k, JSON.stringify(v));
       toast("Backup restaurado. Recarregando…");
       setTimeout(() => location.reload(), 900);
@@ -259,6 +261,7 @@ function bindDataTab() {
       armed = setTimeout(() => { armed = null; reset.textContent = "Apagar tudo"; }, 4000);
       return;
     }
+    window.__pregaoFrozen = true;              // [CORRIGIDO] idem ao importar
     pregaoKeys().forEach((k) => localStorage.removeItem(k));
     toast("Tudo apagado. Recarregando…");
     setTimeout(() => location.reload(), 900);
@@ -285,6 +288,9 @@ on("init", () => {
   // Testar chave
   document.querySelectorAll("[data-test]").forEach((b) => b.addEventListener("click", () => testKey(b.dataset.test)));
 
+  // [NOVO] atalho "Importar backup" na aba de chaves: abre direto a escolha do arquivo
+  $("#hint-import").addEventListener("click", () => $("#set-import").click());
+
   bindLookTab();
   bindUpdateTab();
   bindAlertsTab();
@@ -294,5 +300,6 @@ on("init", () => {
   $("#btn-settings").addEventListener("click", () => {
     showTab("keys");
     ["finnhub", "brapi", "twelve"].forEach((n) => setKeyStatus(n, null, ""));
+    $("#import-hint").hidden = !!state.config.finnhubKey; // só aparece enquanto não tem chave
   });
 });

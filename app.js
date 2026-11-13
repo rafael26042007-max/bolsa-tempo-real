@@ -124,6 +124,9 @@ function load(key, fallback) {
   catch { return fallback; }
 }
 function save(key, value) {
+  // [CORRIGIDO] durante importar backup / apagar tudo, a página antiga não pode mais
+  // salvar nada (senão sobrescreve os dados novos antes de recarregar)
+  if (window.__pregaoFrozen) return;
   try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* sem storage */ }
 }
 const $ = (sel) => document.querySelector(sel);
