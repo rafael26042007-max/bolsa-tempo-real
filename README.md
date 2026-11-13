@@ -18,6 +18,7 @@ Feito em HTML, CSS e JavaScript puro, sem nada pra instalar. Também pode ser **
 - [Estrutura do código](#estrutura-do-código)
 - [Limitações conhecidas](#limitações-conhecidas)
 - [Histórico de versões](#histórico-de-versões)
+- [Créditos](#créditos)
 
 ---
 
@@ -135,6 +136,7 @@ O app instalado se atualiza sozinho: cada mudança publicada aparece na próxima
 | **Alertas** | Som (com teste), notificações do sistema (permitir e testar) e lista de todos os alertas. |
 | **Dados e backup** | **Exportar backup** (com ou sem as chaves) · **Importar backup** (substitui os dados atuais) · limpar cache · apagar tudo. |
 | **Sobre** | Versão, fontes de dados e atalhos de teclado. |
+| **Créditos** | Quem fez, fontes de dados, fontes tipográficas e hospedagem (também abre pelo link **Créditos** no rodapé). |
 
 **Atalhos:** `/` vai pra busca · `↑ ↓ Enter` navegam nos resultados · `Esc` fecha painel e janelas.
 
@@ -232,8 +234,23 @@ Pra criar um recurso novo, basta um arquivo em `js/` que use esses ganchos, mais
 
 | Versão | O que entrou |
 |---|---|
-| **2.1** | Guia de primeiros passos, modo demonstração, links "ver minha chave", atalho de importar backup, modo aplicativo, topo ajustado no celular, correções do manifest e do backup |
+| **2.1** | Aba de créditos, guia de primeiros passos, modo demonstração, links "ver minha chave", atalho de importar backup, modo aplicativo, topo ajustado no celular, correções do manifest e do backup |
 | **2.0** | Alertas, carteira, filtro/ordem/arrastar, indicadores e notícias, tema claro, app instalável, Configurações com abas |
 | **1.x** | Preços ao vivo, busca com prévia, seletor de moeda, gráficos 1D/1M/3M, fila da brapi, conexão compartilhada entre abas |
+
+---
+
+## Créditos
+
+| Quem | Papel |
+|---|---|
+| **Rafael** ("Dev") · [github.com/rafael26042007-max](https://github.com/rafael26042007-max) | Criador do projeto: ideia, direção do produto, escolha dos recursos, testes no computador e no celular, caça aos bugs e publicação. |
+| **Claude** (Anthropic) · assistente de IA | Programação, testes automatizados e documentação, em conversa com o Rafael, que pediu, revisou e testou cada mudança. |
+
+**Dados:** [Finnhub](https://finnhub.io) · [brapi](https://brapi.dev) · [Twelve Data](https://twelvedata.com) · [ExchangeRate-API](https://www.exchangerate-api.com) e [Frankfurter](https://frankfurter.dev) · [Binance](https://www.binance.com)
+**Fontes:** [Inter](https://rsms.me/inter/) (Rasmus Andersson) e [JetBrains Mono](https://www.jetbrains.com/lp/mono/), licença SIL Open Font, via Google Fonts
+**Hospedagem:** [GitHub Pages](https://pages.github.com)
+
+Marcas e logos das empresas pertencem aos seus donos. © 2026 Rafael.
 
 *Não é recomendação de investimento.*

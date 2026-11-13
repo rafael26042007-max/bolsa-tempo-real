@@ -122,7 +122,8 @@
   <footer class="footer muted small">
     Dados: <a href="https://finnhub.io" target="_blank" rel="noopener">Finnhub</a> (EUA e cripto, tempo real) ·
     <a href="https://brapi.dev" target="_blank" rel="noopener">brapi</a> (B3, com atraso).
-    Não é recomendação de investimento.
+    Não é recomendação de investimento. ·
+    <button type="button" class="link-btn" id="footer-credits" style="padding:0;font-size:inherit">Créditos</button> <!-- [NOVO] -->
   </footer>
 
   <!-- ===================== PAINEL DE DETALHES ===================== -->
@@ -193,6 +194,7 @@
           <button type="button" data-tab="alerts">Alertas</button>
           <button type="button" data-tab="data">Dados e backup</button>
           <button type="button" data-tab="about">Sobre</button>
+          <button type="button" data-tab="credits">Créditos</button> <!-- [NOVO] -->
         </nav>
 
         <div class="settings-content">
@@ -388,6 +390,66 @@
             </p>
           </section>
 
+
+          <!-- ---------- [NOVO] Aba 7: Créditos ---------- -->
+          <section data-panel="credits" hidden>
+            <div class="credits-hero">
+              <img src="icons/icon-192.png" alt="" width="52" height="52" />
+              <div>
+                <b>Pregão</b>
+                <div class="muted small">Bolsa em tempo real · feito em Blumenau, SC · 2026</div>
+              </div>
+            </div>
+
+            <h5 class="set-sub">Quem fez</h5>
+            <div class="credit-people">
+              <div class="credit-card">
+                <div class="credit-avatar">R</div>
+                <div>
+                  <b>Rafael <span class="muted">· "Dev"</span></b>
+                  <div class="credit-role">Criador do projeto</div>
+                  <p>Ideia, direção do produto, escolha de cada recurso, testes no computador e no celular, caça aos bugs e publicação.</p>
+                  <a href="https://github.com/rafael26042007-max" target="_blank" rel="noopener" class="small">github.com/rafael26042007-max ↗</a>
+                </div>
+              </div>
+              <div class="credit-card">
+                <div class="credit-avatar ai">✳</div>
+                <div>
+                  <b>Claude <span class="muted">· Anthropic</span></b>
+                  <div class="credit-role">Assistente de IA (Claude Opus 5.5)</div>
+                  <p>Programação, testes automatizados e documentação, em conversa com o Rafael, que pediu, revisou e testou cada mudança.</p>
+                  <a href="https://www.anthropic.com/claude" target="_blank" rel="noopener" class="small">anthropic.com/claude ↗</a>
+                </div>
+              </div>
+            </div>
+
+            <h5 class="set-sub">Dados</h5>
+            <table class="set-table">
+              <tbody>
+                <tr><td><a href="https://finnhub.io" target="_blank" rel="noopener">Finnhub</a></td><td>Preços ao vivo, busca, notícias e indicadores</td></tr>
+                <tr><td><a href="https://brapi.dev" target="_blank" rel="noopener">brapi</a></td><td>Cotações da B3</td></tr>
+                <tr><td><a href="https://twelvedata.com" target="_blank" rel="noopener">Twelve Data</a></td><td>Gráficos históricos</td></tr>
+                <tr><td><a href="https://www.exchangerate-api.com" target="_blank" rel="noopener">ExchangeRate-API</a> e <a href="https://frankfurter.dev" target="_blank" rel="noopener">Frankfurter</a></td><td>Câmbio (Frankfurter usa as taxas do Banco Central Europeu)</td></tr>
+                <tr><td><a href="https://www.binance.com" target="_blank" rel="noopener">Binance</a></td><td>Variação de 24h das criptomoedas</td></tr>
+              </tbody>
+            </table>
+
+            <h5 class="set-sub">Fontes, ferramentas e hospedagem</h5>
+            <table class="set-table">
+              <tbody>
+                <tr><td><a href="https://rsms.me/inter/" target="_blank" rel="noopener">Inter</a> (Rasmus Andersson)</td><td>Fonte dos textos · licença SIL Open Font</td></tr>
+                <tr><td><a href="https://www.jetbrains.com/lp/mono/" target="_blank" rel="noopener">JetBrains Mono</a> (JetBrains)</td><td>Fonte dos números · licença SIL Open Font</td></tr>
+                <tr><td><a href="https://fonts.google.com" target="_blank" rel="noopener">Google Fonts</a></td><td>Entrega das fontes</td></tr>
+                <tr><td><a href="https://pages.github.com" target="_blank" rel="noopener">GitHub Pages</a></td><td>Hospedagem do site</td></tr>
+                <tr><td><a href="https://translate.google.com" target="_blank" rel="noopener">Google Tradutor</a></td><td>Link "em português" das notícias</td></tr>
+              </tbody>
+            </table>
+
+            <p class="muted small" style="margin-top:16px">
+              Ícone e visual desenhados para o Pregão. Marcas e logos das empresas pertencem aos seus donos.<br />
+              © 2026 Rafael. Não é recomendação de investimento.
+            </p>
+          </section>
         </div>
       </div>
     </div>

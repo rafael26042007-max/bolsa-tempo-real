@@ -10,6 +10,7 @@
    4. Alertas        → som, notificações do sistema, todos os alertas.
    5. Dados e backup → exportar/importar, limpar cache, apagar tudo.
    6. Sobre          → versão, fontes de dados e atalhos.
+   7. Créditos       → quem fez, dados, fontes e hospedagem. [NOVO]
    As abas 2 a 5 salvam na hora, sem botão de salvar.
    ========================================================= */
 "use strict";
@@ -285,6 +286,9 @@ on("init", () => {
     if (b) showTab(b.dataset.tab);
   });
   $("#settings-close").addEventListener("click", closeSettings);
+
+  // [NOVO] link "Créditos" no rodapé abre direto a aba de créditos
+  $("#footer-credits").addEventListener("click", () => { openSettings(); showTab("credits"); });
 
   // Mostrar/ocultar chave
   document.querySelectorAll("[data-eye]").forEach((b) => b.addEventListener("click", () => {
