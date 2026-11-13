@@ -835,7 +835,8 @@ function createCard(item) {
 }
 
 function badgeFor(symbol, r) {
-  if (r.status === "err") return { text: "ERRO", cls: "err" };
+  // [ALTERADO] sem chave não é erro: só falta configurar
+  if (r.status === "err") return /chave/i.test(r.note) ? { text: "SEM CHAVE", cls: "" } : { text: "ERRO", cls: "err" };
   if (r.status === "delay") return { text: "B3 · ~30 MIN", cls: "delay" };
   if (r.status === "live" && isLive()) return { text: "AO VIVO", cls: "live" };
   if (r.status === "poll" || (r.status === "live" && providerOf(symbol) === "us"))
@@ -1640,16 +1641,23 @@ function bindSettings() {
     state.config.finnhubKey = $("#finnhub-key").value.trim();
     state.config.brapiKey = $("#brapi-key").value.trim();
     state.config.twelveKey = $("#twelve-key").value.trim(); // [NOVO]
-    Object.values(state.data).forEach((r) => (r.hist = {})); // recarrega gráficos com as chaves novas
-    save(STORAGE_CONFIG, state.config);
     closeSettings();
-    toast("Chaves salvas. Conectando…");
-    live.failures = 0; live.warned = false; state.wsRetry = 0;
-    startLive();
-    loadMarketStatus();
-    state.list.forEach((i) => { const r = rec(i.symbol); if (r.status === "err") r.status = "wait"; });
-    loadAll();
+    applyKeys();
   });
+}
+
+// [NOVO] Salva as chaves de state.config e reconecta tudo.
+// Usada pelo "Salvar e conectar" e pelo guia de primeiros passos (js/boas-vindas.js).
+function applyKeys() {
+  Object.values(state.data).forEach((r) => (r.hist = {})); // recarrega gráficos com as chaves novas
+  save(STORAGE_CONFIG, state.config);
+  toast("Chaves salvas. Conectando…");
+  live.failures = 0; live.warned = false; state.wsRetry = 0;
+  startLive();
+  loadMarketStatus();
+  state.list.forEach((i) => { const r = rec(i.symbol); if (r.status === "err") r.status = "wait"; });
+  loadAll();
+  emit("keysChanged"); // [NOVO]
 }
 
 /* =========================================================
@@ -1705,7 +1713,10 @@ function init() {
 
   if (!state.config.finnhubKey) {
     setWsStatus("off", "Sem chave");
-    openSettings();
+    // [ALTERADO] sem chave: o guia de primeiros passos (js/boas-vindas.js) assume;
+    // se ele não estiver carregado, abre as configurações como antes
+    if (hooks.needKey && hooks.needKey.length) setTimeout(() => emit("needKey"));
+    else openSettings();
   } else {
     startLive(); // [ALTERADO] antes era connectWS()
     loadMarketStatus();

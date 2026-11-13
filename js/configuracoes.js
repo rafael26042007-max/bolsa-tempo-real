@@ -35,34 +35,41 @@ function setKeyStatus(name, ok, text) {
   el.textContent = text;
 }
 
-async function testKey(name) {
-  const key = $(`#${{ finnhub: "finnhub-key", brapi: "brapi-key", twelve: "twelve-key" }[name]}`).value.trim();
-  if (!key) { setKeyStatus(name, false, "Cole a chave antes de testar."); return; }
-  setKeyStatus(name, null, "Testando…");
+// [ALTERADO] verifyKey testa uma chave e devolve { ok, text } (true = funciona,
+// false = errada, null = não deu pra saber agora). Usada aqui e no js/boas-vindas.js.
+async function verifyKey(name, key) {
+  if (!key) return { ok: false, text: "Cole a chave antes de testar." };
   try {
     if (name === "finnhub") {
       const res = await fetch(`${FINNHUB_REST}/quote?symbol=AAPL&token=${encodeURIComponent(key)}`);
-      if (res.status === 401 || res.status === 403) return setKeyStatus(name, false, "✗ Chave inválida.");
-      if (res.status === 429) return setKeyStatus(name, null, "Chave aceita, mas o limite por minuto foi atingido. Tente em 1 min.");
+      if (res.status === 401 || res.status === 403) return { ok: false, text: "✗ Chave inválida. Confira se copiou inteira." };
+      if (res.status === 429) return { ok: null, text: "Chave aceita, mas o limite por minuto foi atingido. Tente em 1 min." };
       const j = await res.json();
-      setKeyStatus(name, j.c > 0, j.c > 0 ? `✓ Funcionando — Apple agora: US$ ${fmtNum(j.c)}` : "✗ A chave não retornou dados.");
-    } else if (name === "brapi") {
-      if (Date.now() < brapiPausedUntil) return setKeyStatus(name, null, `A brapi pediu uma pausa — teste em ${brapiPauseLeft()} min.`);
+      return j.c > 0 ? { ok: true, text: `✓ Funcionando — Apple agora: US$ ${fmtNum(j.c)}` } : { ok: false, text: "✗ A chave não retornou dados." };
+    }
+    if (name === "brapi") {
+      if (Date.now() < brapiPausedUntil) return { ok: null, text: `A brapi pediu uma pausa — teste em ${brapiPauseLeft()} min.` };
       const res = await fetch(`${BRAPI}/quote/BBAS3?token=${encodeURIComponent(key)}`); // BBAS3 não é de teste: exige token
-      if (res.status === 401 || res.status === 403) return setKeyStatus(name, false, "✗ Token inválido.");
-      if (res.status === 429) return setKeyStatus(name, null, "Token aceito, mas o limite foi atingido agora. Tente mais tarde.");
+      if (res.status === 401 || res.status === 403) return { ok: false, text: "✗ Token inválido. Confira se copiou inteiro." };
+      if (res.status === 429) return { ok: null, text: "Token aceito, mas o limite foi atingido agora. Tente mais tarde." };
       const j = await res.json();
       const q = j.results && j.results[0];
-      setKeyStatus(name, !!q, q ? `✓ Funcionando — BBAS3: R$ ${fmtNum(q.regularMarketPrice)}` : "✗ O token não retornou dados.");
-    } else {
-      const res = await fetch(`${TWELVE}/api_usage?apikey=${encodeURIComponent(key)}`);
-      const j = await res.json();
-      if (j.status === "error" || j.code) return setKeyStatus(name, false, `✗ ${j.code === 401 ? "Chave inválida." : j.message || "Erro."}`);
-      setKeyStatus(name, true, `✓ Funcionando — usados hoje: ${j.daily_usage ?? j.current_usage ?? "?"} de ${j.plan_daily_limit ?? j.plan_limit ?? "?"} pedidos.`);
+      return q ? { ok: true, text: `✓ Funcionando — BBAS3: R$ ${fmtNum(q.regularMarketPrice)}` } : { ok: false, text: "✗ O token não retornou dados." };
     }
+    const res = await fetch(`${TWELVE}/api_usage?apikey=${encodeURIComponent(key)}`);
+    const j = await res.json();
+    if (j.status === "error" || j.code) return { ok: false, text: `✗ ${j.code === 401 ? "Chave inválida. Confira se copiou inteira." : j.message || "Erro."}` };
+    return { ok: true, text: `✓ Funcionando — usados hoje: ${j.daily_usage ?? j.current_usage ?? "?"} de ${j.plan_daily_limit ?? j.plan_limit ?? "?"} pedidos.` };
   } catch {
-    setKeyStatus(name, false, "✗ Sem resposta (internet, bloqueio de rede ou extensão do navegador).");
+    return { ok: false, text: "✗ Sem resposta (internet, bloqueio de rede ou extensão do navegador)." };
   }
+}
+
+async function testKey(name) {
+  const key = $(`#${{ finnhub: "finnhub-key", brapi: "brapi-key", twelve: "twelve-key" }[name]}`).value.trim();
+  setKeyStatus(name, null, "Testando…");
+  const r = await verifyKey(name, key);
+  setKeyStatus(name, r.ok, r.text);
 }
 
 /* ---------- 3. Aba Aparência ---------- */

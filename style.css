@@ -772,3 +772,69 @@ body.compact .search-section { padding: 32px 0 22px; }
   font-size: 13px; color: var(--text-2);
 }
 @media (max-width: 680px) { .import-hint { flex-direction: column; align-items: stretch; } }
+
+/* =========================================================
+   11. [NOVO] GUIA DE PRIMEIROS PASSOS E MODO DEMONSTRAÇÃO
+   ========================================================= */
+.welcome {
+  position: relative;
+  width: min(520px, 100%);
+  max-height: calc(100vh - 32px); overflow-y: auto;
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: 18px; box-shadow: var(--shadow);
+  padding: 30px 30px 26px;
+}
+.wz-progress { position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--border); border-radius: 18px 18px 0 0; overflow: hidden; }
+.wz-progress span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s ease; }
+.wz-step h3 { font-size: 21px; margin: 6px 0 10px; letter-spacing: -.2px; }
+.wz-step p { color: var(--text-2); line-height: 1.6; }
+.wz-logo { border-radius: 14px; display: block; margin-bottom: 10px; }
+.wz-kicker { font-size: 11.5px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: var(--accent); }
+.wz-points { list-style: none; margin: 16px 0; display: flex; flex-direction: column; gap: 8px; }
+.wz-points li { padding-left: 24px; position: relative; color: var(--text-2); font-size: 14px; }
+.wz-points li::before { content: "✓"; position: absolute; left: 2px; color: var(--up); font-weight: 700; }
+.wz-howto { margin: 16px 0 14px 20px; display: flex; flex-direction: column; gap: 8px; color: var(--text-2); font-size: 14px; line-height: 1.5; }
+.wz-howto code { font-family: var(--mono); font-size: 12px; background: var(--surface-2); padding: 1px 5px; border-radius: 5px; }
+.wz-links { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0; }
+.wz-links .link-btn { font-size: 12.5px; }
+.wz-input { margin-top: 8px; }
+.wz-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.wz-actions.col { flex-direction: column; align-items: stretch; }
+.wz-actions.col .link-btn { margin-top: 2px; font-size: 13px; }
+.wz-opt { border: 1px solid var(--border); border-radius: 12px; padding: 14px; margin-top: 12px; }
+.wz-opt-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.wz-opt p { margin: 4px 0 2px; line-height: 1.5; }
+.wz-done {
+  width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center;
+  font-size: 28px; color: var(--up); background: var(--up-bg); margin-bottom: 6px;
+}
+.key-links a { color: var(--accent); }
+
+.demo-banner {
+  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+  width: min(760px, calc(100% - 24px));
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 12px 14px 12px 18px;
+  background: var(--surface-2); border: 1px solid var(--accent); border-radius: 14px;
+  box-shadow: var(--shadow); z-index: 40; font-size: 13.5px; color: var(--text-2);
+}
+body.has-demo-banner .container { padding-bottom: 96px; }
+@media (max-width: 640px) {
+  .welcome { padding: 26px 20px 20px; }
+  .demo-banner { flex-direction: column; align-items: stretch; text-align: center; }
+}
+
+/* ---------- 8.1 [CORRIGIDO] Topo no celular ----------
+   A barra do topo ficava mais larga que a tela (a ⚙ cortava) e empurrava a página
+   para os lados. No celular: some o status do mercado e o seletor de moeda (a moeda
+   continua em ⚙ → Aparência), a pílula do ao vivo vira só a bolinha colorida. */
+html, body { overflow-x: hidden; }
+@media (max-width: 640px) {
+  .topbar { gap: 8px; }
+  .status-group { gap: 6px; min-width: 0; }
+  .currency-picker { display: none; }
+  #ws-status { padding: 9px; }
+  #ws-status .pill-text { display: none; }
+  .icon-btn { width: 36px; height: 36px; }
+}
+body.has-demo-banner .toast { bottom: 104px; } /* [NOVO] avisos não ficam em cima da faixa */

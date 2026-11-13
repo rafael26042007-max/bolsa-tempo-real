@@ -19,6 +19,8 @@ Feito em HTML, CSS e JavaScript puro: não precisa instalar nada, e também pode
 
 ## Como rodar
 
+> **Não sabe o que é uma chave de API?** Abra o Pregão: o **guia de primeiros passos** aparece sozinho e explica tudo, com links para criar cada conta e para achar a chave de quem já tem conta. Dá também para usar **sem chave nenhuma** no **modo demonstração** (cripto e as ações de teste da B3).
+
 1. Crie uma chave **grátis** da Finnhub em <https://finnhub.io/register> (obrigatória).
 2. Abra o `index.html` no navegador (dois cliques já funciona) **ou** acesse pelo GitHub Pages (veja abaixo).
 3. Na janela de **Configurações → Chaves de API**, cole a chave, clique em **Testar** e depois em **Salvar e conectar**.
@@ -139,6 +141,7 @@ js/lista.js           → filtrar, ordenar e arrastar
 js/noticias.js        → indicadores e notícias do painel
 js/tema-pwa.js        → tema claro/escuro e instalação como app
 js/configuracoes.js   → janela de configurações com abas
+js/boas-vindas.js     → guia de primeiros passos e modo demonstração
 sw.js                 → service worker (app instalável / funciona offline)
 manifest.json         → nome, cores e ícones do app
 icons/                → ícones do app

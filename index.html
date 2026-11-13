@@ -206,11 +206,13 @@
                 <span>Já usa o Pregão em outro navegador ou celular? Traga tudo de lá com um backup.</span>
                 <button type="button" class="btn btn-sm" id="hint-import">Importar backup</button>
               </div>
+              <!-- [NOVO] reabrir o guia passo a passo -->
+              <p class="small muted">Não sabe o que é uma chave nem onde conseguir? <button type="button" class="link-btn" id="open-guide" style="padding:0">Abrir o guia passo a passo</button></p>
 
               <div class="key-row">
                 <div class="key-top">
                   <span class="key-name">Finnhub <em class="req">obrigatória</em></span>
-                  <a href="https://finnhub.io/register" target="_blank" rel="noopener" class="small">criar chave ↗</a>
+                  <span class="small key-links"><a href="https://finnhub.io/register" target="_blank" rel="noopener">criar chave ↗</a> · <a href="https://finnhub.io/dashboard" target="_blank" rel="noopener" title="Já tem conta? A chave fica no painel do site">ver minha chave ↗</a></span>
                 </div>
                 <div class="key-input">
                   <input id="finnhub-key" type="password" placeholder="cole sua chave aqui" autocomplete="off" spellcheck="false" />
@@ -224,7 +226,7 @@
               <div class="key-row">
                 <div class="key-top">
                   <span class="key-name">brapi <em class="opt">opcional</em></span>
-                  <a href="https://brapi.dev/dashboard" target="_blank" rel="noopener" class="small">criar token ↗</a>
+                  <span class="small key-links"><a href="https://brapi.dev/dashboard" target="_blank" rel="noopener">criar token ↗</a> · <a href="https://brapi.dev/dashboard" target="_blank" rel="noopener" title="Já tem conta? A chave fica no painel do site">ver minha chave ↗</a></span>
                 </div>
                 <div class="key-input">
                   <input id="brapi-key" type="password" placeholder="token da brapi (ações da B3)" autocomplete="off" spellcheck="false" />
@@ -238,7 +240,7 @@
               <div class="key-row">
                 <div class="key-top">
                   <span class="key-name">Twelve Data <em class="opt">opcional</em></span>
-                  <a href="https://twelvedata.com/register" target="_blank" rel="noopener" class="small">criar chave ↗</a>
+                  <span class="small key-links"><a href="https://twelvedata.com/register" target="_blank" rel="noopener">criar chave ↗</a> · <a href="https://twelvedata.com/account/api-keys" target="_blank" rel="noopener" title="Já tem conta? A chave fica no painel do site">ver minha chave ↗</a></span>
                 </div>
                 <div class="key-input">
                   <input id="twelve-key" type="password" placeholder="chave da Twelve Data (gráficos)" autocomplete="off" spellcheck="false" />
@@ -391,6 +393,108 @@
     </div>
   </div>
 
+  <!-- ===================== [NOVO] GUIA DE PRIMEIROS PASSOS (js/boas-vindas.js) =====================
+       Aparece para quem abre o Pregão sem chave. Explica o que é uma chave, como
+       conseguir cada uma e permite usar em "modo demonstração" sem chave nenhuma. -->
+  <div id="welcome-overlay" class="overlay center" hidden>
+    <div class="welcome" role="dialog" aria-labelledby="wz-title">
+      <div class="wz-progress"><span id="wz-bar"></span></div>
+
+      <!-- Passo 0: boas-vindas -->
+      <section class="wz-step" data-step="0">
+        <img src="icons/icon-192.png" alt="" width="56" height="56" class="wz-logo" />
+        <h3 id="wz-title">Bem-vindo ao Pregão</h3>
+        <p>Pra mostrar os preços das ações, o Pregão busca os dados em serviços gratuitos da internet.
+           Cada pessoa usa a <b>própria chave de acesso</b>: uma espécie de senha que o serviço te dá de graça.</p>
+        <ul class="wz-points">
+          <li><b>Grátis</b>: não pede cartão.</li>
+          <li><b>Leva uns 2 minutos</b>: é só criar a conta e copiar a chave.</li>
+          <li><b>Fica só no seu aparelho</b>: ninguém mais vê a sua chave.</li>
+        </ul>
+        <div class="wz-actions col">
+          <button type="button" class="btn btn-primary" data-go="1">Configurar agora (2 min)</button>
+          <button type="button" class="btn" id="wz-demo">Só quero dar uma olhada (modo demonstração)</button>
+          <button type="button" class="link-btn" id="wz-backup">Já uso o Pregão em outro aparelho — importar backup</button>
+        </div>
+      </section>
+
+      <!-- Passo 1: Finnhub (obrigatória) -->
+      <section class="wz-step" data-step="1" hidden>
+        <span class="wz-kicker">Passo 1 de 2 · obrigatório</span>
+        <h3>Chave da Finnhub</h3>
+        <p class="muted small">É a principal: preço ao vivo das ações dos EUA e cripto, busca, notícias.</p>
+        <ol class="wz-howto">
+          <li>Clique em <b>Abrir a Finnhub</b> e crie a conta (e-mail e senha, ou "Sign up with Google").</li>
+          <li>Confirme o e-mail que eles mandam, se pedirem.</li>
+          <li>No painel (<i>Dashboard</i>), copie o código que aparece em <b>API Key</b>. É um texto tipo <code>d1a2b3c4…</code></li>
+          <li>Volte aqui, cole embaixo e clique em <b>Testar e continuar</b>.</li>
+        </ol>
+        <div class="wz-links">
+          <a class="btn btn-sm" href="https://finnhub.io/register" target="_blank" rel="noopener">Abrir a Finnhub ↗</a>
+          <a class="link-btn" href="https://finnhub.io/dashboard" target="_blank" rel="noopener">Já tenho conta: ver minha chave ↗</a>
+        </div>
+        <div class="key-input wz-input">
+          <input id="wz-finnhub" type="text" placeholder="cole aqui a chave da Finnhub" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="key-status" id="wz-finnhub-status"></div>
+        <div class="wz-actions">
+          <button type="button" class="btn btn-ghost" data-go="0">Voltar</button>
+          <button type="button" class="btn btn-primary" id="wz-finnhub-next">Testar e continuar</button>
+        </div>
+      </section>
+
+      <!-- Passo 2: opcionais -->
+      <section class="wz-step" data-step="2" hidden>
+        <span class="wz-kicker">Passo 2 de 2 · opcional</span>
+        <h3>Quer mais? (pode pular)</h3>
+        <p class="muted small">Dá pra adicionar depois em ⚙ Configurações → Chaves de API.</p>
+
+        <div class="wz-opt">
+          <div class="wz-opt-head"><b>brapi</b> <span class="muted small">ações da B3 (Petrobras, Itaú, Vale…)</span></div>
+          <p class="small muted">Sem ela, só PETR4, VALE3, MGLU3 e ITUB4 funcionam. Crie a conta, entre no painel e copie o token em <b>Chaves de API</b>.</p>
+          <div class="wz-links">
+            <a class="btn btn-sm" href="https://brapi.dev/dashboard" target="_blank" rel="noopener">Abrir a brapi ↗</a>
+          </div>
+          <div class="key-input wz-input"><input id="wz-brapi" type="text" placeholder="token da brapi (opcional)" autocomplete="off" spellcheck="false" /></div>
+          <div class="key-status" id="wz-brapi-status"></div>
+        </div>
+
+        <div class="wz-opt">
+          <div class="wz-opt-head"><b>Twelve Data</b> <span class="muted small">gráficos com o mercado fechado</span></div>
+          <p class="small muted">Crie a conta, abra <b>API keys</b> no menu, clique em <i>Reveal</i> e copie a chave.</p>
+          <div class="wz-links">
+            <a class="btn btn-sm" href="https://twelvedata.com/register" target="_blank" rel="noopener">Abrir a Twelve Data ↗</a>
+            <a class="link-btn" href="https://twelvedata.com/account/api-keys" target="_blank" rel="noopener">Já tenho conta: ver minha chave ↗</a>
+          </div>
+          <div class="key-input wz-input"><input id="wz-twelve" type="text" placeholder="chave da Twelve Data (opcional)" autocomplete="off" spellcheck="false" /></div>
+          <div class="key-status" id="wz-twelve-status"></div>
+        </div>
+
+        <div class="wz-actions">
+          <button type="button" class="btn btn-ghost" data-go="1">Voltar</button>
+          <button type="button" class="btn btn-primary" id="wz-finish">Concluir</button>
+        </div>
+      </section>
+
+      <!-- Passo 3: pronto -->
+      <section class="wz-step" data-step="3" hidden>
+        <div class="wz-done">✓</div>
+        <h3>Pronto!</h3>
+        <ul class="wz-points" id="wz-summary"></ul>
+        <p class="muted small">Dica: em ⚙ Configurações → Dados e backup você baixa um backup para usar o Pregão em outro aparelho sem refazer isso.</p>
+        <div class="wz-actions col">
+          <button type="button" class="btn btn-primary" id="wz-close">Começar a usar</button>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <!-- [NOVO] faixa do modo demonstração -->
+  <div id="demo-banner" class="demo-banner" hidden>
+    <span><b>Modo demonstração:</b> sem chave, só funcionam cripto e as ações de teste da B3 (PETR4, VALE3, MGLU3, ITUB4).</span>
+    <button type="button" class="btn btn-sm btn-primary" id="demo-setup">Configurar chaves</button>
+  </div>
+
   <div id="toast" class="toast" hidden></div>
 
   <script src="app.js"></script>
@@ -401,5 +505,6 @@
   <script src="js/noticias.js"></script>
   <script src="js/tema-pwa.js"></script>
   <script src="js/configuracoes.js"></script>
+  <script src="js/boas-vindas.js"></script>
 </body>
 </html>
