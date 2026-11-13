@@ -27,13 +27,13 @@ concurrency:                  # um push novo cancela a publicação antiga que a
 jobs:
   testar:
     name: Testes automáticos
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # fixo: o Playwright ainda não suporta o Ubuntu 26.04 (o "latest")
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
@@ -50,7 +50,7 @@ jobs:
     name: Publicar no GitHub Pages
     needs: testar               # ← só roda se os testes passarem
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # fixo: o Playwright ainda não suporta o Ubuntu 26.04 (o "latest")
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
