@@ -1,38 +1,52 @@
 # Pregão — Bolsa em tempo real
 
 Painel para acompanhar **ações dos EUA, da B3 e criptomoedas**, com preço ao vivo, carteira, alertas e gráficos.
-Feito em HTML, CSS e JavaScript puro: não precisa instalar nada, e também pode ser **instalado como app** no celular ou no PC.
+Feito em HTML, CSS e JavaScript puro, sem nada pra instalar. Também pode ser **instalado como app** no celular ou no PC.
+
+### ▶ Acesse: **<https://rafael26042007-max.github.io/bolsa-tempo-real/>**
 
 ![Lista com resumo da carteira](docs/preview-carteira.png)
 
 ---
 
 ## Sumário
-- [Como rodar](#como-rodar)
+- [Começar a usar](#começar-a-usar)
 - [Funcionalidades](#funcionalidades)
 - [De onde vêm os dados](#de-onde-vêm-os-dados)
 - [Configurações](#configurações)
+- [Rodar e publicar o código](#rodar-e-publicar-o-código)
 - [Estrutura do código](#estrutura-do-código)
 - [Limitações conhecidas](#limitações-conhecidas)
+- [Histórico de versões](#histórico-de-versões)
 
 ---
 
-## Como rodar
+## Começar a usar
 
-> **Não sabe o que é uma chave de API?** Abra o Pregão: o **guia de primeiros passos** aparece sozinho e explica tudo, com links para criar cada conta e para achar a chave de quem já tem conta. Dá também para usar **sem chave nenhuma** no **modo demonstração** (cripto e as ações de teste da B3).
+Abra o link acima. Na primeira vez aparece o **guia de primeiros passos**, com três caminhos:
 
-1. Crie uma chave **grátis** da Finnhub em <https://finnhub.io/register> (obrigatória).
-2. Abra o `index.html` no navegador (dois cliques já funciona) **ou** acesse pelo GitHub Pages (veja abaixo).
-3. Na janela de **Configurações → Chaves de API**, cole a chave, clique em **Testar** e depois em **Salvar e conectar**.
-4. Opcionais, também grátis:
-   - **brapi** (<https://brapi.dev/dashboard>): para buscar qualquer ação da B3. Sem ela, só PETR4, VALE3, MGLU3 e ITUB4 funcionam.
-   - **Twelve Data** (<https://twelvedata.com/register>): gráficos do último pregão e de 1/3 meses das ações dos EUA e cripto, mesmo com o mercado fechado.
+![Guia de primeiros passos](docs/preview-guia.png)
 
-> As chaves ficam salvas **só no seu navegador** (localStorage). Nunca coloque chaves no código antes de subir pro GitHub.
+| Opção | Pra quem é |
+|---|---|
+| **Configurar agora (2 min)** | Quem quer tudo funcionando. O guia explica o que é uma chave de API, mostra **onde clicar** em cada site e **testa a chave** antes de seguir. |
+| **Só quero dar uma olhada** | Quem quer testar sem criar conta: é o **modo demonstração**, sem chave nenhuma. Funcionam cripto e as ações de teste da B3 (PETR4, VALE3, MGLU3, ITUB4). |
+| **Já uso o Pregão em outro aparelho** | Quem já configurou em outro lugar: importa o **backup** e traz tudo. |
 
-### Publicar no GitHub Pages
-`Settings → Pages → Branch: main / (root) → Save`. Em ~1 minuto o site fica em
-`https://SEU-USUARIO.github.io/NOME-DO-REPO/`. Pelo GitHub Pages (https), o botão **Instalar app** aparece no topo.
+### As chaves de API (todas grátis, sem cartão)
+| Serviço | Obrigatória? | Pra que serve | Criar conta | Já tem conta? A chave fica em… |
+|---|---|---|---|---|
+| **Finnhub** | Sim | Preço ao vivo de EUA e cripto, busca, notícias, indicadores | <https://finnhub.io/register> | <https://finnhub.io/dashboard> → **API Key** |
+| **brapi** | Não | Todas as ações da B3 (sem ela, só as 4 de teste) | <https://brapi.dev/dashboard> | <https://brapi.dev/dashboard> → **Chaves de API** |
+| **Twelve Data** | Não | Gráficos com o mercado fechado (último pregão, 1 e 3 meses) | <https://twelvedata.com/register> | <https://twelvedata.com/account/api-keys> → **Reveal** |
+
+> As chaves ficam salvas **só no navegador de quem usa**, separadas por navegador e por endereço do site. Quem abre o seu link não vê as suas chaves. Pra usar em outro navegador ou no celular, use o **backup** (veja [Configurações](#configurações)).
+
+### Instalar como app
+- **PC (Chrome/Edge):** botão **Instalar app** no topo do Pregão (ou o ícone na barra de endereço).
+- **Celular (Chrome):** menu **⋮ → Instalar app** / **Adicionar à tela inicial**.
+
+O app instalado se atualiza sozinho: cada mudança publicada aparece na próxima vez que você abre o app. Às vezes precisa abrir duas vezes.
 
 ---
 
@@ -47,11 +61,13 @@ Feito em HTML, CSS e JavaScript puro: não precisa instalar nada, e também pode
   | **AO VIVO** | Preço do momento (EUA e cripto). |
   | **B3 · ~30 MIN** | Ação brasileira, com ~30 min de atraso (limite da fonte grátis). |
   | **FECHADO** | A bolsa americana não está funcionando agora. |
-  | **A CADA 15 S** | O ao vivo caiu e o app atualiza a cada 15 s até voltar. |
+  | **A CADA 15 S** | Sem conexão ao vivo (ela caiu, ou é o modo demonstração): o app atualiza a cada 15 s. |
   | **AGUARDANDO** | Esperando liberar os dados. O motivo aparece embaixo. |
+  | **SEM CHAVE** | Esse ativo precisa da chave da Finnhub (ações dos EUA no modo demonstração). |
+  | **ERRO** | Não deu pra buscar (código inexistente, ação fora do plano grátis…). O motivo aparece embaixo. |
 
 - **Status da bolsa americana** no topo: aberta, pré-mercado, after-market, fechada ou feriado.
-- **Seletor de moeda**: converte todos os preços para R$, US$, €, £, ¥ e outras pelo câmbio do dia.
+- **Seletor de moeda**: converte todos os preços para R$, US$, €, £, ¥ e outras pelo câmbio do dia. No celular, ele fica em ⚙ → Aparência.
 
 ### Buscar e ver antes de adicionar
 - A **busca** encontra empresas dos EUA, da B3 e criptos pelo nome ou código, e já mostra **preço e variação** de cada resultado.
@@ -84,8 +100,8 @@ Feito em HTML, CSS e JavaScript puro: não precisa instalar nada, e também pode
 
 ### Outros
 - **Tema claro, escuro ou do sistema** (botão ☀/☾ no topo ou em Configurações).
-- **App instalável (PWA)**: ícone na tela inicial e abre sem a barra do navegador.
-- **Modo aplicativo**: no app instalado, bloqueia F12, Ctrl+Shift+I, Ctrl+U e o botão direito (desligue em Configurações → Aparência quando for programar). Não é segurança: o DevTools ainda abre pelo menu ⋮ do navegador.
+- **App instalável (PWA)**: ícone na tela inicial, abre sem a barra do navegador e até abre sem internet (os preços voltam quando a conexão volta).
+- **Modo aplicativo**: no app instalado, bloqueia F12, Ctrl+Shift+I, Ctrl+U e o botão direito. Desligue em ⚙ → Aparência quando for programar. Não é segurança: o DevTools ainda abre pelo menu ⋮ do navegador.
 - **Várias abas** abertas não brigam pela conexão: só uma conecta e repassa os preços para as outras.
 - Lista, carteira, alertas e preferências ficam **salvos no navegador**.
 
@@ -96,10 +112,10 @@ Feito em HTML, CSS e JavaScript puro: não precisa instalar nada, e também pode
 | Fonte | Usada para | Atualização | Limite grátis |
 |---|---|---|---|
 | **Finnhub** | Preço de EUA e cripto, busca, notícias, indicadores | **Tempo real** (WebSocket) | 60 pedidos/min · 1 conexão ao vivo por chave · 50 ativos ao vivo |
-| **brapi** | Ações da B3 (cotação, gráfico 1M/3M, indicadores) | ~30 min de atraso | Cota mensal + limite de chamadas simultâneas |
+| **brapi** | Ações da B3 (cotação, gráfico, indicadores) | ~30 min de atraso | Cota mensal + limite de chamadas simultâneas |
 | **Twelve Data** | Gráficos históricos de EUA e cripto | Ao abrir o gráfico | 8 pedidos/min · 800/dia |
 | **open.er-api / Frankfurter** | Câmbio | 1x por dia | Sem chave |
-| **Binance** | Variação de 24h das criptos | A cada 1 min | Sem chave |
+| **Binance** | Variação de 24h das criptos e preço no modo demonstração | A cada 1 min (15 s na demonstração) | Sem chave |
 
 **Por que a B3 não é em tempo real?** A B3 cobra pela licença dos dados ao vivo. Nenhuma fonte gratuita entrega isso, e o app mostra o selo de atraso em vez de fingir que é ao vivo.
 
@@ -113,14 +129,35 @@ Feito em HTML, CSS e JavaScript puro: não precisa instalar nada, e também pode
 
 | Aba | O que tem |
 |---|---|
-| **Chaves de API** | Mostrar/ocultar e **testar** cada chave (mostra se funciona e o uso do dia). |
+| **Chaves de API** | Mostrar/ocultar e **testar** cada chave · links **criar conta** e **ver minha chave** · atalho **Importar backup** (enquanto não há chave) · **Abrir o guia passo a passo**. |
 | **Aparência** | Tema, moeda, layout compacto, mini-gráficos, piscar preço, atalhos da busca e modo aplicativo. |
 | **Atualização** | Status da conexão ao vivo, reconectar, intervalo da B3 (1 a 10 min) e uso das APIs. |
 | **Alertas** | Som (com teste), notificações do sistema (permitir e testar) e lista de todos os alertas. |
-| **Dados e backup** | **Exportar/importar backup** (.json), limpar cache e apagar tudo. |
+| **Dados e backup** | **Exportar backup** (com ou sem as chaves) · **Importar backup** (substitui os dados atuais) · limpar cache · apagar tudo. |
 | **Sobre** | Versão, fontes de dados e atalhos de teclado. |
 
 **Atalhos:** `/` vai pra busca · `↑ ↓ Enter` navegam nos resultados · `Esc` fecha painel e janelas.
+
+> O arquivo de backup **com as chaves** dá acesso às suas contas nos serviços. Guarde com cuidado e **não suba pro GitHub**.
+
+---
+
+## Rodar e publicar o código
+
+### No PC
+- **Mais simples:** abra o `index.html` com dois cliques. Tudo funciona, menos instalar como app (precisa de `http(s)`).
+- **Pelo IntelliJ / WebStorm** (`localhost:63342`): funciona. Se aparecer **404** no `manifest.json` ou no service worker, vá em *Settings → Build, Execution, Deployment → Debugger* e marque **Allow unsigned requests**. O servidor embutido recusa pedidos "não assinados" pelo token `_ijt` da URL.
+- Os dados ficam separados por endereço: o Pregão do `localhost` e o do `github.io` têm chaves e listas diferentes. Use o backup pra levar de um pro outro.
+
+### Publicar no GitHub Pages
+1. No repositório: **Settings → Pages**. Se o GitHub estiver traduzido: **Configurações → Páginas**.
+2. **Source:** *Deploy from a branch* ("Implantar a partir de uma ramificação").
+3. **Branch** ("Filial"): troque **None** ("Nenhum") por **main**, pasta **/ (root)** ("/ (raiz)"), e clique em **Save** ("Salvar").
+4. Em 1 a 3 minutos aparece *"Your site is live at…"* ("Seu site está online em…"). A aba **Actions** mostra o andamento ("pages build and deployment").
+
+**Não preencha** o campo *Custom domain* ("Domínio personalizado"): ele é só pra quem comprou um domínio próprio, e colar o link do github.io ali gera um aviso de erro.
+
+Depois disso, **cada `git push` na `main` republica o site sozinho**.
 
 ---
 
@@ -139,12 +176,13 @@ js/alertas.js         → alertas de preço
 js/carteira.js        → minha carteira e resumo
 js/lista.js           → filtrar, ordenar e arrastar
 js/noticias.js        → indicadores e notícias do painel
-js/tema-pwa.js        → tema claro/escuro e instalação como app
+js/tema-pwa.js        → tema claro/escuro, instalação como app e modo aplicativo
 js/configuracoes.js   → janela de configurações com abas
 js/boas-vindas.js     → guia de primeiros passos e modo demonstração
-sw.js                 → service worker (app instalável / funciona offline)
+sw.js                 → service worker (app instalável / abre sem internet)
 manifest.json         → nome, cores e ícones do app
 icons/                → ícones do app
+docs/                 → imagens deste README
 ```
 
 ### Como os recursos se ligam ao núcleo (ganchos)
@@ -157,11 +195,23 @@ Os arquivos da pasta `js/` não mexem no `app.js`. Eles se **inscrevem em evento
 | `cardCreated(símbolo, elemento)` / `card(símbolo, refs, dados)` | Card criado / atualizado |
 | `detailOpen(símbolo)` / `detail(símbolo, dados)` / `detailClose(símbolo)` | Painel de detalhes |
 | `listChanged` | Ativo adicionado ou removido |
+| `needKey` | O app abriu sem a chave da Finnhub (o guia usa isso) |
+| `keysChanged` | As chaves foram salvas |
 
-Pra criar um recurso novo, basta um arquivo em `js/` que use esses ganchos, mais um `<script>` no `index.html`.
+Pra criar um recurso novo, basta um arquivo em `js/` que use esses ganchos, mais um `<script>` no `index.html` e o nome do arquivo na lista do `sw.js` (aumentando o número do `CACHE`).
 
 ### Dados salvos no navegador (localStorage)
-`pregao.config` (chaves) · `pregao.watchlist` (lista) · `pregao.portfolio` (carteira) · `pregao.alerts` (alertas) · `pregao.prefs` (preferências) · `pregao.listview` (filtro/ordem) · `pregao.theme` · `pregao.currency` · `pregao.hist` e `pregao.b3cache` (cache).
+| Chave | O que guarda |
+|---|---|
+| `pregao.config` | Chaves de API |
+| `pregao.watchlist` | Lista de ativos (e a ordem) |
+| `pregao.portfolio` | Carteira |
+| `pregao.alerts` | Alertas |
+| `pregao.prefs` | Preferências das Configurações |
+| `pregao.listview` | Filtro e ordenação da lista |
+| `pregao.theme` / `pregao.currency` | Tema e moeda |
+| `pregao.demo` | Escolheu o modo demonstração |
+| `pregao.hist` / `pregao.b3cache` | Cache de gráficos e últimas cotações da B3 |
 
 ---
 
@@ -169,9 +219,21 @@ Pra criar um recurso novo, basta um arquivo em `js/` que use esses ganchos, mais
 
 - **B3 com atraso de ~30 min** no plano grátis da brapi. O gráfico do dia (1D) da B3 só funciona nas ações de teste (PETR4, VALE3, MGLU3, ITUB4). As outras mostram 1M/3M.
 - Sem a chave da Twelve Data, o gráfico 1D das ações dos EUA se forma só com os negócios ao vivo. Com o mercado fechado, ele fica vazio.
+- **1 conexão ao vivo por chave da Finnhub:** com o Pregão aberto no PC e no celular com a mesma chave, um deles fica em "A CADA 15 S". Várias abas no mesmo navegador funcionam normalmente.
 - Ações de outras bolsas (Europa, Ásia) aparecem na busca, mas a cotação delas é paga na Finnhub.
 - As notícias vêm em inglês (há o link de tradução). Não há notícias da B3 na fonte gratuita.
 - Arrastar os cards funciona com o mouse. No celular, use a ordenação pelo menu.
+- Os dados **não sincronizam** sozinhos entre aparelhos: use o backup.
 - O botão **Instalar app** e as notificações no celular precisam do site em https (GitHub Pages).
+
+---
+
+## Histórico de versões
+
+| Versão | O que entrou |
+|---|---|
+| **2.1** | Guia de primeiros passos, modo demonstração, links "ver minha chave", atalho de importar backup, modo aplicativo, topo ajustado no celular, correções do manifest e do backup |
+| **2.0** | Alertas, carteira, filtro/ordem/arrastar, indicadores e notícias, tema claro, app instalável, Configurações com abas |
+| **1.x** | Preços ao vivo, busca com prévia, seletor de moeda, gráficos 1D/1M/3M, fila da brapi, conexão compartilhada entre abas |
 
 *Não é recomendação de investimento.*

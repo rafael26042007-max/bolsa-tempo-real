@@ -8,7 +8,7 @@
    preço velho seria pior do que nenhum preço.
    Mude CACHE ao alterar esta lista de arquivos.
    ========================================================= */
-const CACHE = "pregao-v6"; // [ALTERADO] mude o número sempre que a lista de arquivos mudar
+const CACHE = "pregao-v7"; // [ALTERADO] mude o número sempre que a lista de arquivos mudar
 const APP_FILES = [
   "./",
   "index.html",

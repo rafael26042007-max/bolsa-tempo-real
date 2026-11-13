@@ -14,7 +14,7 @@
    ========================================================= */
 "use strict";
 
-const APP_VERSION = "2.0 · novembro de 2026";
+const APP_VERSION = "2.1 · novembro de 2026";
 const STORAGE_PREFS = "pregao.prefs";
 
 function savePrefs() { save(STORAGE_PREFS, state.prefs); }
